@@ -221,7 +221,8 @@ Add these after the decklist filename, e.g.
 
 | Flag | What it does |
 |---|---|
-| `--csv results.csv` | Also save the results to a spreadsheet-friendly CSV file, so you can open it in Excel, Google Sheets, or Numbers. |
+| `--csv results.csv` | Also save the raw results to a spreadsheet-friendly CSV file, so you can open it in Excel, Google Sheets, or Numbers. |
+| `--summary report.txt` | Also save a deckbuilder-facing statistics summary — mana base breakdown, curve shape, a color reliability index, an overall reliability heuristic for comparing decks at a glance, and a plain-language takeaways section. See [Step 8](#step-8--the-statistics-summary-report) below. |
 | `--simulations 20000` | Run more simulated games (default 10,000) for a more precise answer, at the cost of taking longer to run. |
 | `--max-turns 12` | Simulate further into the game (default 10 turns) — useful if your deck has a lot of very expensive cards. |
 | `--verbose` | Print a line for every single card as it's looked up on Scryfall, so you can watch progress on a big decklist. |
@@ -263,6 +264,35 @@ A few patterns worth knowing how to read:
 If you exported a CSV (`--csv results.csv`), you can open that same data in
 any spreadsheet program to sort, filter, or chart it — for example, sorting
 by the "On-curve" column to see your least-reliable cards at a glance.
+
+## Step 8 — The Statistics Summary Report
+
+Running with `--summary report.txt` writes a second, plain-text file aimed
+squarely at deckbuilding decisions rather than raw data. It includes:
+
+- **An overall reliability heuristic** — a single headline percentage: if you
+  reached into your deck and pulled one nonland card out at random, what's
+  the average chance its cost was payable on curve? This is the single most
+  useful number for comparing two different decks, or two versions of the
+  same manabase before/after a change — a straightforward "did this get
+  better or worse."
+- **A mana base breakdown** — land count, fetch/tapped-land counts, and a
+  per-color source count (lands and mana rocks/dorks counted separately).
+- **A curve shape chart** — how many nonland cards sit at each mana value.
+- **A color reliability index** — which of your colors is actually the
+  weakest link, isolated from how many pips a card needs.
+- **The full per-card table**, plus call-outs for your hardest-to-cast
+  cards, your most "color-hungry" cards (the ones that take the longest to
+  become reliable), your safest includes, and any cards that never become
+  reliable at all.
+- **A plain-language takeaways section** — a handful of bullet points
+  (land count adequacy, color balance, curve shape, land quality, chronic
+  problem cards) written directly from the numbers above it, so you don't
+  have to do that reading yourself.
+
+This is meant to be read top-to-bottom as a deckbuilding report, not just a
+data dump — use it after making a change to your manabase to see whether the
+headline number and the takeaways moved the way you expected.
 
 ## Troubleshooting
 
