@@ -1208,9 +1208,17 @@ def fetch_card_data(name: str, cache: dict, verbose: bool = False) -> Optional[d
     the Ages flavor name for the mechanically-identical "Mangara, the
     Diplomat"), and `exact=` resolving that is the correct outcome,
     not a bug to guard against.
+
+    `verbose` logs BOTH outcomes -- a cache hit and a fresh network
+    fetch -- not just fresh fetches. A cache-hit-only skip here would
+    make verbose mode go silent for any decklist that's been run
+    before (i.e. nearly always, once `scryfall_cache.json` has built
+    up), which defeats the point of a progress log.
     """
     cache_key = name.lower()
     if cache_key in cache:
+        if verbose:
+            print(f"  [fetch_card_data] {name!r} already cached, skipping network fetch")
         return cache[cache_key]
 
     if scrython is None:
