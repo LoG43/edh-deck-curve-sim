@@ -157,6 +157,20 @@ rules-accurate MTG game engine. In particular:
         separate same-turn/next-turn modeling (assumptions 1-2 above)
         and are unaffected by this.
 
+12. EXACTLY ONE CARD IS DRAWN PER TURN (see `run_single_game`, STEP 6),
+    every turn including turn 1 (assumption 7's Commander-specific
+    multiplayer draw rule). Card-draw spells and effects (Sign in
+    Blood, Faithless Looting, wheel effects, Rhystic Study triggers,
+    etc.) are NOT modeled -- the simulated player never sees extra
+    cards beyond the one-per-turn baseline, regardless of what's
+    actually in the decklist. This is a real, and potentially large,
+    source of pessimism: a deck full of card advantage will find its
+    lands and action spells meaningfully faster in an actual game than
+    this tool's numbers suggest, because seeing more cards raises the
+    odds of having the right land or accelerant in hand by any given
+    turn. There is no toggle for this -- it is a structural limitation
+    of the one-card-per-turn draw loop, not a configurable assumption.
+
 None of these assumptions are exotic -- they mirror how experienced
 deckbuilders reason about curves by hand -- but they are worth
 knowing about before you treat the output as gospel.

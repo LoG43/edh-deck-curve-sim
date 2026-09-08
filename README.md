@@ -5,6 +5,12 @@ decklist; it plays out **10,000 simulated games** of your deck and tells you,
 for every single nonland card, how reliably your mana base can actually pay
 for it — turn by turn.
 
+The easiest way to use it is the **local web app**: run one command, then do
+everything else — uploading your decklist, setting options, and reading the
+full report — in your browser. That's what this page focuses on. A
+command-line mode also exists for anyone who prefers it; see
+[Alternative: Command Line](#alternative-command-line) near the bottom.
+
 This page assumes you've never used Python, a terminal, or GitHub before.
 Every step is spelled out. If you're already comfortable with all of that,
 skip to [Quick Start](#quick-start).
@@ -42,17 +48,29 @@ This lets you spot things like:
 
 It does **not** replace playtesting, and it doesn't know about board states,
 combat, or what your opponents are doing — see [What This Tool Doesn't Do](#what-this-tool-doesnt-do)
-below.
+below. It also makes a specific, significant simplifying assumption about
+card draw that's worth understanding before you trust the numbers — see the
+next section.
+
+**Before you rely on any of these numbers**, the web app has a full,
+plain-language page explaining every heuristic and assumption behind them —
+what each decision is, why it's made, and what it actually changes in your
+results. You'll find a link to it right on the upload page and on every
+results page once the app is running.
 
 ## Quick Start
 
 ```
 pip install -r requirements.txt
-python vibecodedCurveSim.py your_decklist.txt
+python app.py
 ```
 
-That's the whole thing, if you already have Python and a decklist text file.
-Everyone else, keep reading.
+Then open `http://127.0.0.1:5000` in your web browser. Upload your decklist
+`.txt` file, click **Run Simulation**, and read your results as a formatted
+web page — no flags to remember, no terminal output to parse.
+
+Everyone else, keep reading — the rest of this page walks through getting to
+that point from scratch.
 
 ---
 
@@ -99,7 +117,7 @@ is simpler if you've never used Git.)
 
 A "terminal" (also called a command prompt or shell) is just a window where
 you type commands instead of clicking things. You'll use it to install the
-one thing this tool depends on, and to actually run it.
+one thing this tool depends on, and to start the web app.
 
 - **Windows:** open the extracted folder in File Explorer, then hold
   **Shift** and **right-click** in an empty area inside the folder. Choose
@@ -113,13 +131,14 @@ one thing this tool depends on, and to actually run it.
   right-click menu.
 
 You should now have a terminal window whose current location is the folder
-containing `vibecodedCurveSim.py`.
+containing `vibecodedCurveSim.py` and `app.py`.
 
-## Step 4 — Install the one dependency
+## Step 4 — Install dependencies
 
-This tool needs one additional piece of software, called `scrython`, to
-fetch card data from [Scryfall](https://scryfall.com) (a free, public
-Magic card database). In the terminal you just opened, type:
+This tool needs two additional pieces of software: `scrython` (to fetch card
+data from [Scryfall](https://scryfall.com), a free public Magic card
+database) and `flask` (a small local web server that runs the browser
+interface). In the terminal you just opened, type:
 
 ```
 pip install -r requirements.txt
@@ -147,8 +166,9 @@ by a card name**, like this:
 Archidekt, EDHREC, TappedOut, Commander Spellbook, etc.) has an "Export" or
 "Copy to clipboard" option that gives you exactly this format, or something
 very close to it. Copy that text into a new file, save it with a `.txt`
-extension (e.g. `my_deck.txt`), and put it in the same folder as
-`vibecodedCurveSim.py` (or just remember where you saved it).
+extension (e.g. `my_deck.txt`), and put it somewhere you'll remember — it
+doesn't need to be in the tool's folder, since you'll upload it through the
+browser.
 
 A few things the tool handles automatically, so don't worry about cleaning
 these up by hand:
@@ -190,69 +210,74 @@ fairly small effect (mostly: the library becomes 100 cards instead of 99,
 and your commander occupies a hand slot in the simulation instead of being
 free), but it's a real one, and free to avoid. Worth the extra 30 seconds.
 
-## Step 6 — Run it
+## Step 6 — Run the web app
 
-Back in your terminal (still in the tool's folder), type:
+Start the web server from your terminal:
 
 ```
-python vibecodedCurveSim.py my_deck.txt
+python app.py
 ```
 
-(replacing `my_deck.txt` with whatever you named your file — if you saved it
-somewhere else, use the full path instead, e.g.
-`python vibecodedCurveSim.py "C:\Users\You\Desktop\my_deck.txt"`.)
+You'll see some text in your terminal saying the server is running — leave
+that window open (closing it stops the server). Open your web browser and go
+to:
 
-**What happens next:** the first time you run any given decklist, the tool
-looks up every card on Scryfall over the internet, one at a time (it
-deliberately paces itself to avoid overloading Scryfall's servers, so a
-~100-card deck can take **30–90 seconds** the first time — this is normal,
-just let it finish). Every card it looks up gets saved to a local file
-(`scryfall_cache.json`), so running the *same* deck again — or a different
-deck that shares a lot of cards with one you've already run — is much
-faster.
+```
+http://127.0.0.1:5000
+```
 
-After that, it plays out 10,000 simulated games and prints a table like the
-one shown at the top of this page.
+You'll see a form: choose your decklist `.txt` file, optionally adjust the
+number of simulations or turns, check the box for a detailed Scryfall
+fetch log if you want one, and click **Run Simulation**.
 
-### Useful optional flags
+The first run for a new decklist will take a little while — it's fetching
+every card from Scryfall over the internet, one at a time, on purpose, to be
+polite to Scryfall's servers. Give it a minute or two on a ~100-card deck.
+Every card it looks up gets saved to a local file (`scryfall_cache.json`),
+so running the *same* deck again — or a different deck that shares a lot of
+cards with one you've already run — is much faster.
 
-Add these after the decklist filename, e.g.
-`python vibecodedCurveSim.py my_deck.txt --csv results.csv`:
+To stop the server when you're done, go back to the terminal window it's
+running in and press `Ctrl+C`.
 
-| Flag | What it does |
-|---|---|
-| `--csv results.csv` | Also save the raw results to a spreadsheet-friendly CSV file, so you can open it in Excel, Google Sheets, or Numbers. |
-| `--summary report.txt` | Also save a deckbuilder-facing statistics summary — mana base breakdown, curve shape, a color reliability index, an overall reliability heuristic for comparing decks at a glance, and a plain-language takeaways section. See [Step 8](#step-8--the-statistics-summary-report) below. |
-| `--simulations 20000` | Run more simulated games (default 10,000) for a more precise answer, at the cost of taking longer to run. |
-| `--max-turns 12` | Simulate further into the game (default 10 turns) — useful if your deck has a lot of very expensive cards. |
-| `--verbose` | Print a line for every single card as it's looked up on Scryfall, so you can watch progress on a big decklist. |
-
-Run `python vibecodedCurveSim.py --help` any time to see this list from the
-tool itself.
+**A note on scope:** this web page is meant for one person running it on
+their own computer, not a public multi-user service — it keeps only the
+most recent run in memory, so if you (or someone else) started a second run
+on the same running server, it would replace the first one's results rather
+than keeping them side by side. That's fine for personal use; it's not
+designed to be deployed to the internet for multiple people to use at once.
 
 ## Step 7 — Reading your results
 
-The table has one row per nonland card, sorted by mana value:
+The results page opens with a headline **Overall Deck Reliability** number —
+if you reached into your deck and pulled one nonland card out at random,
+what's the average chance its cost was payable on curve? This is the single
+most useful number for comparing two different decks, or two versions of the
+same manabase before/after a change.
 
-```
- CMC   On-curve      cmc+1      cmc+2      cmc+3  Card
-   1      85.2%      99.9%      99.9%    100.0%  Sol Ring
-   1      37.9%      69.6%      90.8%     96.4%  Condemn
-```
+Below that:
 
-- **CMC** — the card's mana value (what turn it "should" come down on).
-- **On-curve** — the percentage of simulated games where the mana was
-  available on exactly that turn.
-- **cmc+1 / cmc+2 / cmc+3** — the same question, one/two/three turns later.
-  A card that climbs quickly toward 100% just needed the deck to develop a
-  bit; a card still stuck in the 60-70% range three turns later has a real
-  color or cost problem, not just bad luck in the sample.
+- **Mana Base** — land count, fetch/tapped-land counts, and a per-color
+  source count (lands and mana rocks/dorks counted separately), with bar
+  charts.
+- **Spell Curve Shape** — how many nonland cards sit at each mana value.
+- **Color Reliability Index** — which of your colors is actually the
+  weakest link, isolated from how many pips a card needs.
+- **Notable Outliers** — your hardest-to-cast cards, your steepest
+  "climbers" (cards that jump a lot from on-curve to one turn later), and
+  your most reliable includes.
+- **Deckbuilder Takeaways** — a handful of plain-language bullet points
+  (land count adequacy, color balance, curve shape, land quality, chronic
+  problem cards) written directly from the numbers above them.
+- **The full per-card curve table**, sorted by mana value, with the same
+  On-curve / cmc+1 / cmc+2 / cmc+3 columns shown in
+  ["What does this actually tell me?"](#what-does-this-actually-tell-me).
 
-A few patterns worth knowing how to read:
+A few patterns worth knowing how to read in that full table:
 
 - **Colorless cards (artifacts, generic-cost spells) score very high, very
   early.** That's correct — they don't care about your color balance at all,
-  only about having *any* land in play. Sol Ring above is a good example.
+  only about having *any* land in play. Sol Ring is a good example.
 - **Cards needing a rare color in your manabase score lower, and climb more
   slowly.** That's the tool doing its job — it's telling you that color is
   undersupported.
@@ -261,49 +286,27 @@ A few patterns worth knowing how to read:
   will often be the single hardest card in your deck to cast on time — worth
   knowing before you build around it.
 
-If you exported a CSV (`--csv results.csv`), you can open that same data in
-any spreadsheet program to sort, filter, or chart it — for example, sorting
-by the "On-curve" column to see your least-reliable cards at a glance.
-
-## Step 8 — The Statistics Summary Report
-
-Running with `--summary report.txt` writes a second, plain-text file aimed
-squarely at deckbuilding decisions rather than raw data. It includes:
-
-- **An overall reliability heuristic** — a single headline percentage: if you
-  reached into your deck and pulled one nonland card out at random, what's
-  the average chance its cost was payable on curve? This is the single most
-  useful number for comparing two different decks, or two versions of the
-  same manabase before/after a change — a straightforward "did this get
-  better or worse."
-- **A mana base breakdown** — land count, fetch/tapped-land counts, and a
-  per-color source count (lands and mana rocks/dorks counted separately).
-- **A curve shape chart** — how many nonland cards sit at each mana value.
-- **A color reliability index** — which of your colors is actually the
-  weakest link, isolated from how many pips a card needs.
-- **The full per-card table**, plus call-outs for your hardest-to-cast
-  cards, your most "color-hungry" cards (the ones that take the longest to
-  become reliable), your safest includes, and any cards that never become
-  reliable at all.
-- **A plain-language takeaways section** — a handful of bullet points
-  (land count adequacy, color balance, curve shape, land quality, chronic
-  problem cards) written directly from the numbers above it, so you don't
-  have to do that reading yourself.
-
-This is meant to be read top-to-bottom as a deckbuilding report, not just a
-data dump — use it after making a change to your manabase to see whether the
-headline number and the takeaways moved the way you expected.
+Two buttons at the top let you download the same data as a raw CSV file (to
+open in a spreadsheet program) or as a plain-text report (the same content
+as the web page, formatted for pasting into a forum post or Discord). And at
+the very bottom of every results page — as well as on the upload page before
+you've run anything — there's a link to **how this simulator thinks**: a
+full plain-language breakdown of every assumption and heuristic behind the
+numbers, explained in a "what it decides / why / what it actually changes"
+format. It's worth reading at least once, and especially before you draw a
+strong conclusion from a single close percentage.
 
 ## Troubleshooting
 
-**"scrython is required..."** — you skipped or need to redo Step 4:
-`pip install -r requirements.txt`.
+**"scrython is required..." or "flask is required..."** — you skipped or
+need to redo Step 4: `pip install -r requirements.txt`.
 
 **"Could not find card 'X' on Scryfall"** — almost always a typo in your
 decklist file, or a card name Scryfall doesn't recognize under that exact
 spelling. Double-check the spelling (including punctuation like commas and
 apostrophes) against Scryfall's website. The tool will skip that one card
-and keep going rather than stopping the whole run.
+and keep going rather than stopping the whole run — you'll see a warning
+listing which cards were excluded.
 
 **"Rate-limited by Scryfall; waiting 60s before retrying..."** — this is
 normal and handled automatically, especially on a very large decklist or if
@@ -313,8 +316,9 @@ on its own.
 **It looks stuck / nothing is happening** — on the *first* run of a new
 decklist, it's fetching every card from the internet one at a time (on
 purpose, to be polite to Scryfall's servers). For a 100-card deck this can
-take up to a minute or two. Add `--verbose` to see it working card by card if
-you want visible progress.
+take up to a minute or two. Check the box for the detailed fetch log on the
+upload form (or add `--verbose` on the command line) to see it working card
+by card if you want visible progress.
 
 **My commander still shows up as a row in the results** — after adding the
 `Commander` heading correctly (Step 5), your commander should disappear from
@@ -323,6 +327,11 @@ simulated deck altogether, since you already have guaranteed access to it
 from the command zone. If it's still showing up as a row, double-check the
 heading is spelled exactly `Commander`, on its own line, directly above your
 commander's line.
+
+**The page in my browser looks broken / says it can't connect** — make sure
+the terminal window running `python app.py` is still open; closing it stops
+the server. If you closed it, just run `python app.py` again and reload the
+page.
 
 ## How the Simulated Player Makes Decisions
 
@@ -351,7 +360,10 @@ in the immediate turns that decided whether the hand was worth keeping.
 
 1. **Draw a card.** Every turn, including turn 1 — this matches the actual
    tournament rule for multiplayer Commander specifically (the "skip your
-   first draw" rule only applies to two-player games).
+   first draw" rule only applies to two-player games). It's always exactly
+   one card, with no modeling for card-draw spells or effects — see
+   [What This Tool Doesn't Do](#what-this-tool-doesnt-do) below for why that
+   matters.
 
 2. **Play one land.** This is the most consequential decision each turn, so
    it's worth walking through carefully. The simulated player looks at
@@ -411,6 +423,15 @@ is trying to isolate.
 This is a mana-base and curve calculator, not a full game simulator. Things
 it deliberately does not model:
 
+- **Card draw beyond one card per turn.** The simulated player never sees
+  more than the plain one-per-turn baseline — card-draw spells, wheel
+  effects, extra land drops, and similar card-advantage engines are not
+  modeled at all. This is one of the most significant sources of pessimism
+  in the tool: if your deck runs real card advantage, your actual games will
+  find lands and key spells faster than these numbers suggest, because
+  seeing more cards raises the odds of having the right one in hand by any
+  given turn. Treat every percentage here as a *floor* for a deck with
+  strong card draw, not a ceiling.
 - **Life totals.** Fetch lands and shock lands are assumed to always pay
   their cost successfully — their life loss isn't tracked.
 - **Opponents, combat, or board states.** It only knows about your deck's
@@ -424,10 +445,46 @@ it deliberately does not model:
 
 None of these make the numbers wrong for what they're meant to answer — "can
 my mana base support this card's cost" — but they're worth knowing about
-before treating any single percentage as gospel. The full, much more
-detailed list of modeling assumptions and known limitations is documented at
-the top of `vibecodedCurveSim.py` itself, for anyone curious enough to read
-the source.
+before treating any single percentage as gospel. The web app has a full,
+plain-language page walking through every one of these decisions in detail —
+look for the **"how this simulator thinks"** link on the upload page or at
+the bottom of any results page. The same information, in more technical
+form, is documented at the top of `vibecodedCurveSim.py` itself, for anyone
+curious enough to read the source.
+
+## Alternative: Command Line
+
+If you'd rather skip the browser entirely, the exact same simulation engine
+is available as a command-line tool — same numbers, same assumptions, just
+printed as a text table instead of a web page.
+
+```
+python vibecodedCurveSim.py my_deck.txt
+```
+
+(replacing `my_deck.txt` with whatever you named your file — if you saved it
+somewhere else, use the full path instead, e.g.
+`python vibecodedCurveSim.py "C:\Users\You\Desktop\my_deck.txt"`.)
+
+This goes through the same Scryfall lookup and caching described in Step 6,
+then plays out 10,000 simulated games and prints a table like the one shown
+in ["What does this actually tell me?"](#what-does-this-actually-tell-me).
+
+### Useful optional flags
+
+Add these after the decklist filename, e.g.
+`python vibecodedCurveSim.py my_deck.txt --csv results.csv`:
+
+| Flag | What it does |
+|---|---|
+| `--csv results.csv` | Also save the raw results to a spreadsheet-friendly CSV file, so you can open it in Excel, Google Sheets, or Numbers. |
+| `--summary report.txt` | Also save a deckbuilder-facing statistics summary — mana base breakdown, curve shape, a color reliability index, an overall reliability heuristic for comparing decks at a glance, and a plain-language takeaways section. This is the same content the web app's results page shows, as a plain-text file. |
+| `--simulations 20000` | Run more simulated games (default 10,000) for a more precise answer, at the cost of taking longer to run. |
+| `--max-turns 12` | Simulate further into the game (default 10 turns) — useful if your deck has a lot of very expensive cards. |
+| `--verbose` | Print a line for every single card as it's looked up on Scryfall, so you can watch progress on a big decklist. |
+
+Run `python vibecodedCurveSim.py --help` any time to see this list from the
+tool itself.
 
 ## Contributing
 

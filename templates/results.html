@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>{{ decklist_name }} — Curve Simulation Results</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem;
+           color: #1a1a1a; background: #fafafa; }
+    h1 { font-size: 1.5rem; margin-bottom: 0.1rem; }
+    h2 { font-size: 1.15rem; border-bottom: 2px solid #e2e2e2; padding-bottom: 0.3rem; margin-top: 2.5rem; }
+    .meta { color: #555; font-size: 0.92rem; line-height: 1.6; }
+    .warning { background: #fff8e1; border: 1px solid #f0d98a; color: #7a5b00; padding: 0.6rem 1rem;
+               border-radius: 6px; margin: 1rem 0; font-size: 0.9rem; }
+    .headline { background: #fff; border: 2px solid #2b6cb0; border-radius: 10px; padding: 1.25rem 1.5rem;
+                margin-top: 1.5rem; }
+    .headline h2 { border: none; margin: 0 0 0.75rem 0; font-size: 1.1rem; color: #2b6cb0; }
+    .headline .big { font-size: 2.2rem; font-weight: 700; }
+    .headline .sub { color: #555; font-size: 0.88rem; margin-top: 0.5rem; }
+    .headline-grid { display: flex; gap: 2rem; margin-top: 0.75rem; flex-wrap: wrap; }
+    .headline-grid div { min-width: 90px; }
+    .headline-grid .label { font-size: 0.78rem; color: #777; text-transform: uppercase; letter-spacing: 0.03em; }
+    .headline-grid .value { font-size: 1.3rem; font-weight: 600; }
+    table { width: 100%; border-collapse: collapse; margin-top: 0.75rem; font-size: 0.9rem; }
+    th, td { text-align: left; padding: 0.35rem 0.6rem; border-bottom: 1px solid #eee; }
+    th { background: #f0f0f0; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.02em; color: #555; }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .bar-cell { display: flex; align-items: center; gap: 0.5rem; }
+    .bar-track { flex: 1; background: #eee; border-radius: 3px; height: 10px; overflow: hidden; min-width: 60px; }
+    .bar-fill { background: #2b6cb0; height: 100%; }
+    .bar-fill.curve { background: #38a169; }
+    ul.takeaways { padding-left: 1.1rem; }
+    ul.takeaways li { margin-bottom: 0.6rem; line-height: 1.45; }
+    .outlier-cols { display: flex; gap: 2rem; flex-wrap: wrap; }
+    .outlier-cols > div { flex: 1; min-width: 240px; }
+    .outlier-cols h3 { font-size: 0.95rem; margin-bottom: 0.4rem; }
+    .outlier-cols ol { padding-left: 1.2rem; font-size: 0.88rem; }
+    .downloads { margin-top: 1rem; }
+    .downloads a { display: inline-block; margin-right: 1rem; padding: 0.5rem 1rem; background: #2b6cb0;
+                   color: #fff; text-decoration: none; border-radius: 6px; font-size: 0.9rem; }
+    .downloads a:hover { background: #235a92; }
+    a.back { display: inline-block; margin-top: 2rem; color: #2b6cb0; }
+    details { margin-top: 1rem; }
+    details pre { background: #1a1a1a; color: #d0d0d0; padding: 1rem; border-radius: 6px;
+                  overflow-x: auto; font-size: 0.8rem; }
+  </style>
+</head>
+<body>
+  <h1>{{ decklist_name }}</h1>
+  <div class="meta">
+    {% if commander_names %}
+      Commander(s): {{ commander_names|join(" // ") }}<br>
+    {% else %}
+      Commander(s): none declared — no "Commander" header found in the decklist.<br>
+    {% endif %}
+    Library: {{ total_cards }} cards ({{ total_lands }} lands, {{ nonland_count }} nonland spells) &middot;
+    {{ "{:,}".format(num_simulations) }} simulated games &times; {{ max_turns }} turns
+  </div>
+
+  {% if missing %}
+    <div class="warning">
+      {{ missing|length }} card(s) could not be found on Scryfall and were excluded:
+      {{ missing|join(", ") }}
+    </div>
+  {% endif %}
+
+  <div class="headline">
+    <h2>Overall Deck Reliability</h2>
+    <p style="margin:0 0 0.5rem 0; color:#444;">On a randomly picked nonland card (quantity-weighted
+      across all {{ nonland_count }} of them), the average chance its cost was payable:</p>
+    <div class="headline-grid">
+      <div><div class="label">On curve</div>
+        <div class="value">{{ "%.1f%%"|format(deck_avg[0] * 100) if deck_avg[0] is not none else "—" }}</div></div>
+      <div><div class="label">By cmc+1</div>
+        <div class="value">{{ "%.1f%%"|format(deck_avg[1] * 100) if deck_avg[1] is not none else "—" }}</div></div>
+      <div><div class="label">By cmc+2</div>
+        <div class="value">{{ "%.1f%%"|format(deck_avg[2] * 100) if deck_avg[2] is not none else "—" }}</div></div>
+      <div><div class="label">By cmc+3</div>
+        <div class="value">{{ "%.1f%%"|format(deck_avg[3] * 100) if deck_avg[3] is not none else "—" }}</div></div>
+    </div>
+    <p class="sub">This is the single best number for comparing two different decks, or two versions
+      of the same manabase, at a glance.</p>
+  </div>
+
+  <div class="downloads">
+    <a href="/download/csv">Download raw CSV</a>
+    <a href="/download/summary">Download plain-text summary</a>
+  </div>
+  <p class="meta" style="margin-top:0.75rem;">Want to know what's behind these numbers? See
+    <a href="/assumptions">how this simulator thinks</a> — every heuristic and assumption explained.</p>
+
+  <h2>Mana Base</h2>
+  <p class="meta">
+    Total lands: {{ mana.total_lands }} &middot; Fetchlands: {{ mana.fetch_count }} &middot;
+    Enters-tapped (any kind): {{ mana.tapped_count }}<br>
+    Mana rocks: {{ mana.rock_count }} &middot; Mana dorks: {{ mana.dork_count }} &middot;
+    Ramp spells: {{ mana.ramp_count }}
+  </p>
+  <table>
+    <tr><th>Color</th><th class="num">Land sources</th><th class="num">Rock/Dork</th><th class="num">Total</th><th>Distribution</th></tr>
+    {% for row in mana_rows %}
+    <tr>
+      <td>{{ row.name }}</td><td class="num">{{ row.land }}</td><td class="num">{{ row.rock_dork }}</td>
+      <td class="num">{{ row.total }}</td>
+      <td class="bar-cell"><div class="bar-track"><div class="bar-fill" style="width:{{ row.bar_pct }}%"></div></div></td>
+    </tr>
+    {% endfor %}
+  </table>
+
+  <h2>Spell Curve Shape</h2>
+  <table>
+    <tr><th class="num">CMC</th><th class="num">Cards</th><th>Distribution</th></tr>
+    {% for row in curve_rows %}
+    <tr>
+      <td class="num">{{ row.cmc }}</td><td class="num">{{ row.count }}</td>
+      <td class="bar-cell"><div class="bar-track"><div class="bar-fill" style="width:{{ row.bar_pct }}%"></div></div></td>
+    </tr>
+    {% endfor %}
+  </table>
+
+  <h2>Color Reliability Index</h2>
+  <p class="meta">Average turn-of-CMC mana availability among single-pip cards of each color — isolates
+    "how reliably does this color show up" from pip-count difficulty.</p>
+  {% if color_rows %}
+  <table>
+    <tr><th>Color</th><th class="num">Avg. reliability</th><th>Distribution</th></tr>
+    {% for row in color_rows %}
+    <tr>
+      <td>{{ row.name }}</td><td class="num">{{ "%.1f%%"|format(row.pct * 100) }}</td>
+      <td class="bar-cell"><div class="bar-track"><div class="bar-fill curve" style="width:{{ row.bar_pct }}%"></div></div></td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+    <p class="meta">(no single-colored-pip nonland cards found to measure)</p>
+  {% endif %}
+
+  <h2>Notable Outliers</h2>
+  <div class="outlier-cols">
+    <div>
+      <h3>Hardest to cast on time</h3>
+      <ol>
+        {% for c in lowest_early %}
+        <li>{{ "%.1f%%"|format(c.value * 100) }} — {{ c.name }} ({{ c.cost }}, cmc {{ c.cmc }})</li>
+        {% endfor %}
+      </ol>
+    </div>
+    <div>
+      <h3>Steepest climbers</h3>
+      <ol>
+        {% for c in steepest %}
+        <li>+{{ "%.1f%%"|format(c.gap * 100) }} — {{ c.name }}
+          ({{ "%.1f%%"|format(c.from_pct * 100) }} &rarr; {{ "%.1f%%"|format(c.to_pct * 100) }})</li>
+        {% endfor %}
+      </ol>
+    </div>
+    <div>
+      <h3>Most reliable</h3>
+      <ol>
+        {% for c in most_reliable %}
+        <li>{{ "%.1f%%"|format(c.value * 100) }} — {{ c.name }} ({{ c.cost }}, cmc {{ c.cmc }})</li>
+        {% endfor %}
+      </ol>
+    </div>
+  </div>
+
+  <h2>Deckbuilder Takeaways</h2>
+  <ul class="takeaways">
+    {% for line in takeaways %}
+    <li>{{ line.lstrip("* ") }}</li>
+    {% endfor %}
+  </ul>
+
+  <h2>Full Curve Table</h2>
+  <table>
+    <tr><th class="num">CMC</th><th>Card</th><th>Cost</th><th class="num">On-Curve</th>
+        <th class="num">+1</th><th class="num">+2</th><th class="num">+3</th></tr>
+    {% for row in card_rows %}
+    <tr>
+      <td class="num">{{ row.cmc }}</td><td>{{ row.name }}</td><td>{{ row.cost }}</td>
+      {% for cell in row.cells %}
+        <td class="num">{{ "%.1f%%"|format(cell * 100) if cell is not none else "—" }}</td>
+      {% endfor %}
+    </tr>
+    {% endfor %}
+  </table>
+
+  {% if fetch_log %}
+  <details>
+    <summary>Scryfall fetch log</summary>
+    <pre>{{ fetch_log }}</pre>
+  </details>
+  {% endif %}
+
+  <a class="back" href="/">&larr; Run another simulation</a>
+</body>
+</html>

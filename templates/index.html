@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>MTG Commander Curve Simulator</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 700px; margin: 3rem auto; padding: 0 1rem;
+           color: #1a1a1a; background: #fafafa; }
+    h1 { font-size: 1.6rem; margin-bottom: 0.25rem; }
+    p.subtitle { color: #555; margin-top: 0; }
+    form { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 1.5rem; margin-top: 1.5rem; }
+    label { display: block; font-weight: 600; margin-top: 1rem; }
+    label.inline { display: inline-flex; align-items: center; gap: 0.5rem; font-weight: normal; margin-top: 1.25rem; }
+    input[type=file], input[type=number] { display: block; margin-top: 0.35rem; padding: 0.4rem;
+           border: 1px solid #ccc; border-radius: 4px; width: 100%; box-sizing: border-box; }
+    input[type=number] { max-width: 140px; }
+    .hint { color: #777; font-size: 0.85rem; margin-top: 0.25rem; }
+    button { margin-top: 1.5rem; padding: 0.6rem 1.4rem; font-size: 1rem; font-weight: 600;
+             background: #2b6cb0; color: #fff; border: none; border-radius: 6px; cursor: pointer; }
+    button:hover { background: #235a92; }
+    .error { background: #fde8e8; border: 1px solid #f5b5b5; color: #9b2c2c; padding: 0.75rem 1rem;
+              border-radius: 6px; margin-top: 1.5rem; }
+    .row { display: flex; gap: 2rem; flex-wrap: wrap; }
+  </style>
+</head>
+<body>
+  <h1>MTG Commander Curve Simulator</h1>
+  <p class="subtitle">Upload a decklist, get a full mana-curve reliability report in your browser.
+    Curious how the numbers are actually produced? See <a href="/assumptions">how this simulator
+    thinks</a> before you run it.</p>
+
+  {% if error %}
+    <div class="error">{{ error }}</div>
+  {% endif %}
+
+  <form action="/run" method="post" enctype="multipart/form-data">
+    <label for="decklist">Decklist (.txt file)</label>
+    <input type="file" id="decklist" name="decklist" accept=".txt" required>
+    <p class="hint">One card per line, quantity first (e.g. "1 Sol Ring"). Add a "Commander" header
+      line above your commander for the most accurate results — see the README.</p>
+
+    <div class="row">
+      <div>
+        <label for="simulations">Simulations</label>
+        <input type="number" id="simulations" name="simulations" value="10000" min="1" max="200000">
+        <p class="hint">More games = more precise, slower.</p>
+      </div>
+      <div>
+        <label for="max_turns">Max turns</label>
+        <input type="number" id="max_turns" name="max_turns" value="10" min="1" max="30">
+        <p class="hint">How far into the game to simulate.</p>
+      </div>
+    </div>
+
+    <label class="inline"><input type="checkbox" name="verbose"> Show detailed Scryfall fetch log</label>
+
+    <button type="submit">Run Simulation</button>
+  </form>
+
+  <p class="hint" style="margin-top:2rem;">
+    First run for a new decklist looks up every card on Scryfall over the internet — this can take
+    a minute or two for a ~100-card deck. Every card is cached locally afterward, so re-running the
+    same (or a similar) decklist is much faster.
+  </p>
+</body>
+</html>

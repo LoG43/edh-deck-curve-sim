@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>How This Simulator Thinks — Assumptions &amp; Heuristics</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem;
+           color: #1a1a1a; background: #fafafa; }
+    h1 { font-size: 1.6rem; margin-bottom: 0.1rem; }
+    p.subtitle { color: #555; margin-top: 0.25rem; }
+    h2 { font-size: 1.05rem; margin-top: 0; }
+    .card { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 1.25rem 1.5rem;
+            margin-top: 1.25rem; }
+    .card .num { display: inline-block; background: #2b6cb0; color: #fff; font-size: 0.75rem;
+                 font-weight: 700; border-radius: 999px; padding: 0.1rem 0.55rem; margin-right: 0.5rem;
+                 vertical-align: middle; }
+    .card h2 { display: inline; vertical-align: middle; }
+    dl { margin: 0.9rem 0 0 0; }
+    dt { font-weight: 700; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.03em;
+         color: #2b6cb0; margin-top: 0.9rem; }
+    dt.why { color: #a56b00; }
+    dt.impact { color: #2f7a3d; }
+    dd { margin: 0.25rem 0 0 0; line-height: 1.5; color: #222; }
+    code { background: #f0f0f0; padding: 0.05rem 0.3rem; border-radius: 3px; font-size: 0.9em; }
+    .scope-list { padding-left: 1.2rem; }
+    .scope-list li { margin-bottom: 0.6rem; line-height: 1.5; }
+    a.back { display: inline-block; margin-top: 2rem; color: #2b6cb0; }
+    .intro { color: #444; line-height: 1.6; }
+  </style>
+</head>
+<body>
+  <h1>How This Simulator Thinks</h1>
+  <p class="subtitle">Every heuristic, simplifying assumption, and behavioral decision that shapes the numbers you see.</p>
+
+  <p class="intro">The simulator is not an exact rules engine — it plays out thousands of simplified
+    Commander games and tracks whether each nonland card's cost was payable turn by turn. To make that
+    tractable, it makes a fixed set of deliberate calls about how a "typical" game plays out. None of
+    these are bugs; they're documented design decisions. This page explains each one in plain language:
+    what the tool decided, why it decided that, and what it actually changes in your results.</p>
+
+  <div class="card">
+    <span class="num">1</span><h2>Mana rocks work the turn you play them</h2>
+    <dl>
+      <dt>Decision</dt>
+      <dd>A mana rock (a nonland, noncreature artifact that taps for mana, like Sol Ring or Arcane
+        Signet) is treated as usable for mana the same turn it's cast.</dd>
+      <dt class="why">Why</dt>
+      <dd>This matches the actual Magic rules — summoning sickness only restricts creatures, not
+        artifacts, so a freshly-cast rock can tap for mana immediately in real games.</dd>
+      <dt class="impact">Impact</dt>
+      <dd>Decks leaning on artifact ramp will show stronger, faster mana availability than decks of the
+        same land count without rocks. This is accurate, not an inflated number.</dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <span class="num">2</span><h2>Mana dorks need a turn to "wake up"</h2>
+    <dl>
+      <dt>Decision</dt>
+      <dd>A mana dork (a creature that taps for mana, like Llanowar Elves) can't be tapped for mana
+        until the turn <em>after</em> it's cast, unless its own oracle text says "Haste."</dd>
+      <dt class="why">Why</dt>
+      <dd>This is the real rule for summoning sickness on creatures.</dd>
+      <dt class="impact">Impact</dt>
+      <dd>Two accelerants that both "add one mana" won't look equally fast in the results if one is a
+        rock and one is a dork — the dork's mana shows up a turn later. This is intentional and mirrors
+        a real game.</dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <span class="num">3</span><h2>Ramp spells fetch a tapped land by default</h2>
+    <dl>
+      <dt>Decision</dt>
+      <dd>Spells that search your library for a land and put it onto the battlefield (Rampant Growth,
+        Cultivate, Nature's Lore) are assumed to put that land into play <em>tapped</em>, so it's usable
+        starting the following turn.</dd>
+      <dt class="why">Why</dt>
+      <dd>Most budget and midrange ramp spells do put the land into play tapped — it's the common case
+        across the format, even though a handful of premium effects (Skyshroud Claim, Farseek into a
+        dual) don't.</dd>
+      <dt class="impact">Impact</dt>
+      <dd>If your list leans heavily on the untapped-ramp exceptions, this assumption will slightly
+        <em>undersell</em> your deck's actual speed — a conservative error, not an inflated one. There's
+        a toggle (<code>ASSUME_RAMP_LANDS_TAPPED</code>) near the top of the script for lists like that.</dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <span class="num">4</span><h2>One accelerant per turn, but every card is checked independently</h2>
+    <dl>
+      <dt>Decision</dt>
+      <dd>The simulated player deploys at most one ramp spell or mana rock/dork per turn (the cheapest
+        affordable one) — mirroring "play a land, play one accelerant" sequencing. Separately, every
+        nonland card in the whole decklist is checked each turn for whether its cost <em>could</em> have
+        been paid with whatever mana was actually available that turn, regardless of whether that
+        specific card was drawn that game.</dd>
+      <dt class="why">Why</dt>
+      <dd>This answers the manabase question ("does my mana base support this cost by this turn") rather
+        than trying to simulate one exact, specific play-by-play game line for every card, which would
+        require guessing what the simulated player "chose" to cast among cards it never actually drew.</dd>
+      <dt class="impact">Impact</dt>
+      <dd>Read every percentage as "how reliably could my mana produce this," not "how often did I
+        actually cast this card in a real game." That's the right lens for curve and manabase tuning,
+        which is this tool's whole purpose — but it's not a substitute for full gameplay simulation.</dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <span class="num">5</span><h2>Colored mana is matched with a "most-constrained-source-first" solver</h2>
+    <dl>
+      <dt>Decision</dt>
+      <dd>When checking whether a card's colored pips can be paid, the tool hands out mana starting with
+        the sources that produce the <em>fewest</em> colors (i.e. the least flexible ones) first, saving
+        flexible sources for whatever's left.</dd>
+      <dt class="why">Why</dt>
+      <dd>This is a fast, good real-world approximation of how a careful player sequences mana — it's
+        not a full constraint solver, because an exhaustive solver would be dramatically slower across
+        tens of thousands of simulated games for a benefit that rarely changes the outcome.</dd>
+      <dt class="impact">Impact</dt>
+      <dd>For the vast majority of manabases this matches optimal play exactly. Extremely convoluted
+        manabases (lots of cards that each produce several different colors in unusual combinations)
+        could in rare edge cases be mismodeled at the margins — but this hasn't been observed to matter
+        in any of the decklists tested so far.</dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <span class="num">6</span><h2>Land drops (and accelerant picks) target whatever's cheapest and uncastable</h2>
+    <dl>
+      <dt>Decision</dt>
+      <dd>Each turn's land drop is chosen — when there's a choice among lands in hand — to best supply
+        the colors needed by the cheapest nonland card that can't yet be cast. Mana rocks, mana dorks,
+        ramp spells, and ordinary action spells all compete for this "cheapest uncastable" slot on equal
+        footing, purely by mana value.</dd>
+      <dt class="why">Why</dt>
+      <dd>Earlier versions of this tool only counted "action" spells when deciding what a land drop
+        should aim for, which meant a turn-two mana rock's own color needs were invisible to the land-
+        drop logic — an unrealistic gap, since a real player absolutely sequences lands around casting
+        their accelerants too.</dd>
+      <dt class="impact">Impact</dt>
+      <dd>Decks with colored-mana-hungry rocks or dorks (e.g. a green dork that costs <code>G</code> in a
+        three-color deck) will show more realistic, usually improved, early-game numbers versus older
+        versions of this tool. This is the most recently changed piece of decision logic in the
+        simulator.</dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <span class="num">7</span><h2>Your commander is free — it doesn't compete with your draws</h2>
+    <dl>
+      <dt>Decision</dt>
+      <dd>A card placed under a <code>Commander</code> heading in your decklist file is cast from the
+        command zone and removed from the simulated 99/100-card library entirely — it will never be
+        drawn, and never occupies a card slot.</dd>
+      <dt class="why">Why</dt>
+      <dd>This is how the format actually works: your commander starts in the command zone, not your
+        library.</dd>
+      <dt class="impact">Impact</dt>
+      <dd>If you forget the <code>Commander</code> heading, that card is instead treated as an ordinary
+        99th/100th library card — it can be drawn, milled, or stuck in your opening hand like anything
+        else, and its own curve numbers will appear in the results table instead of being excluded. It
+        does not get "better" numbers either way — marking it correctly just removes it from the table
+        and from the shared library, matching a real game.</dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <span class="num">8</span><h2>Double-faced cards are modeled as a single face — and land faces win</h2>
+    <dl>
+      <dt>Decision</dt>
+      <dd>For modal double-faced cards (MDFCs), transforming cards, and similar two-face cards: if
+        either face is a land, the whole card is modeled as <em>only</em> that land — its spell-side
+        face is ignored for curve purposes. Otherwise, the front (spell) face is used.</dd>
+      <dt class="why">Why</dt>
+      <dd>A card like an MDFC land//spell can only ever be one or the other in a given game, and for a
+        manabase/curve analysis, treating it as a flexible extra land is the more useful and more
+        conservative framing — it deliberately doesn't credit you with "always having access to both
+        halves."</dd>
+      <dt class="impact">Impact</dt>
+      <dd>MDFC lands (e.g. Sea Gate Restoration // Sea Gate, Reborn) count toward your land total and
+        colors, and their castable-spell-side percentages won't appear at all in the results table,
+        because the tool never evaluates that side. If you specifically want to analyze the spell side
+        of an MDFC, this tool will undercount it — that's a known, deliberate scope limit.</dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <span class="num">9</span><h2>Fetchlands are fully played out, including real deck-thinning</h2>
+    <dl>
+      <dt>Decision</dt>
+      <dd>A fetchland (e.g. Arid Mesa, Prismatic Vista) is sacrificed the same turn it's played, a
+        matching land is searched for and actually removed from that game's simulated library, and the
+        found land's own colors and tapped-or-not status are used — not the fetchland's. If no legal
+        target remains, the fetch still resolves and finds nothing, same as in a real game. Fetch targets
+        are chosen to favor whatever color the cheapest uncastable spell in hand currently needs.</dd>
+      <dt class="why">Why</dt>
+      <dd>Fetchlands genuinely thin your deck (later draws are very slightly more likely to be
+        spells) and genuinely convert into whatever land you actually chose — modeling this loosely
+        would misrepresent both the deck-thinning value and the color-fixing value fetches are played
+        for.</dd>
+      <dt class="impact">Impact</dt>
+      <dd>Decks with fetchlands will show slightly better long-game color consistency than a naive land
+        count would suggest, and this compounds correctly with any tapped/shock lands the fetch can
+        find. Life-total cost of shockland fetches (paying 2 life) is <em>not</em> tracked — see the
+        "out of scope" list below.</dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <span class="num">10</span><h2>Enters-tapped lands are checked against your actual battlefield</h2>
+    <dl>
+      <dt>Decision</dt>
+      <dd>Any land that can enter tapped conditionally — shocklands, and the slow/fast/bond/check/battle
+        cycles — has that condition checked against what's really on the battlefield in that simulated
+        game at the moment it enters, whether it was drawn normally or found by a fetch.</dd>
+      <dt class="why">Why</dt>
+      <dd>Whether a check land (needs a matching basic type) or a battle land (needs two-or-more other
+        lands) enters tapped is genuinely conditional on board state — treating them all as "always
+        tapped" or "always untapped" would misrepresent both the good and bad cases.</dd>
+      <dt class="impact">Impact</dt>
+      <dd>These lands' contribution to your mana will vary game-to-game based on what else was drawn and
+        played, which is realistic — you may notice their effective reliability sits between a true
+        tapland and a true untapped land, which is the expected, correct behavior for these card types.</dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <span class="num">11</span><h2>Scope: this is a manabase tool, not a full gameplay simulator</h2>
+    <dl>
+      <dt>Decision</dt>
+      <dd>Two categories of effects are deliberately not modeled at all, as a scope choice rather than an
+        oversight:</dd>
+    </dl>
+    <ul class="scope-list">
+      <li><strong>Life totals.</strong> Paying 2 life for a shockland, or losing life to a fetchland's
+        activation cost on certain lands, is never tracked. The mana is assumed to simply happen. This
+        would only matter for burn-matchup or life-total-sensitive analysis, which this tool doesn't
+        attempt.</li>
+      <li><strong>Nonland "enters tapped" or fetch-like effects.</strong> A creature that enters tapped,
+        or a spell that sacrifices something to tutor a nonland permanent onto the battlefield, is not
+        specially modeled — only lands get the fetch/tapped-land treatment. Mana rocks and mana dorks
+        keep their own separate same-turn/next-turn rules (see items 1 and 2 above) and are unaffected
+        by this.</li>
+    </ul>
+    <dl>
+      <dt class="impact">Impact</dt>
+      <dd>If your question is "will my manabase produce the colors and quantity of mana my curve needs,
+        by which turn" — this tool answers it directly. If your question involves life totals or
+        nonland board-state tutoring effects, this tool's numbers simply don't speak to that; treat it
+        as a manabase-and-curve-only reliability report.</dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <span class="num">12</span><h2>Exactly one card is drawn per turn — no card draw spells</h2>
+    <dl>
+      <dt>Decision</dt>
+      <dd>The simulated player draws exactly one card every turn, including turn 1, and nothing else.
+        Card-draw spells and effects — Sign in Blood, Faithless Looting, wheel effects, Rhystic Study
+        triggers, extra land drops, and so on — are not modeled at all. The simulated player never sees
+        more cards than the plain one-per-turn baseline, no matter what's actually in your decklist.</dd>
+      <dt class="why">Why</dt>
+      <dd>Modeling card draw and card-advantage engines accurately would require simulating what the
+        player actually casts and when — a much larger, more speculative undertaking than answering "is
+        the manabase itself sound." Assuming the plain baseline keeps the tool honestly scoped to mana
+        availability instead of guessing at a play pattern for every possible draw engine.</dd>
+      <dt class="impact">Impact</dt>
+      <dd>This is one of the most significant sources of <strong>pessimism</strong> in the whole tool.
+        If your list runs card draw or extra-card-selection effects, your real games will find lands and
+        key spells meaningfully faster than these numbers suggest, because seeing more cards raises the
+        odds of having the right land or accelerant in hand by any given turn. There's no toggle for
+        this — treat every percentage on this site as a <em>floor</em> on a deck with real card
+        advantage, not a ceiling.</dd>
+    </dl>
+  </div>
+
+  <a class="back" href="/">&larr; Back to the simulator</a>
+</body>
+</html>
