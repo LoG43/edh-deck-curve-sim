@@ -324,6 +324,88 @@ from the command zone. If it's still showing up as a row, double-check the
 heading is spelled exactly `Commander`, on its own line, directly above your
 commander's line.
 
+## How the Simulated Player Makes Decisions
+
+Every one of the 10,000 simulated games follows the exact same playstyle,
+turn after turn. Understanding it helps you trust — and sanity-check — the
+numbers, so here's the full picture of what the simulated player actually
+does, in the order it does it.
+
+### Building the opening hand (mulligans)
+
+At the start of each game, the simulated player draws 7 cards and asks
+itself one question: *"using only what's in this hand — no future draws —
+could I cast at least two nonland cards within the first four turns?"* If
+yes, it keeps the hand. If no, it mulligans: following the standard London
+mulligan rule, it shuffles everything back in, draws a fresh 7, and will
+need to set aside one card for each mulligan it's taken once it finally
+keeps. It will try up to three times before being forced to keep whatever
+it has.
+
+When cards need to be set aside, it doesn't do so blindly: if the hand is
+flooded with lands, it sets aside the extra lands first; otherwise, it sets
+aside its most expensive cards, since those are the least likely to matter
+in the immediate turns that decided whether the hand was worth keeping.
+
+### Each turn, in order
+
+1. **Draw a card.** Every turn, including turn 1 — this matches the actual
+   tournament rule for multiplayer Commander specifically (the "skip your
+   first draw" rule only applies to two-player games).
+
+2. **Play one land.** This is the most consequential decision each turn, so
+   it's worth walking through carefully. The simulated player looks at
+   *everything* in hand that isn't castable yet with the mana currently
+   available — creatures, instants, sorceries, mana rocks, mana dorks, ramp
+   spells, all of it on equal footing — and identifies whichever one costs
+   the least. Whatever color(s) that cheapest card needs, it tries to play a
+   land that provides. If two or more different cards are tied for cheapest
+   and need different colors, it looks for a land that covers as many of
+   those needs as possible, preferring one that covers all of them if such a
+   land exists in hand. Among lands that are equally good on color, it
+   prefers ones that enter the battlefield untapped over ones that enter
+   tapped; if a fetchland is available and nothing else distinguishes the
+   choice, it treats cracking one as a small bonus, since it thins the deck
+   for free. Fetchlands, and lands with entering-tapped conditions (Check
+   Lands, Slow Lands, Fast Lands, and similar cycles), are resolved for
+   real against the actual simulated library and battlefield state that
+   game — not guessed at or approximated.
+
+3. **Deploy one mana rock, mana dork, or ramp spell, if it can afford one —
+   specifically, the *cheapest* one currently in hand that it can pay for.**
+   This mirrors how these decks typically get sequenced in practice: a land
+   plus one accelerant per turn. Mana rocks are usable the same turn they're
+   played (matching the real rule that artifacts don't have summoning
+   sickness); mana dorks come online starting the *following* turn (since
+   creatures do have summoning sickness, unless the dork has Haste); a ramp
+   spell's fetched land typically enters tapped, coming online the turn
+   after that.
+
+4. **Every other card in hand is left alone that turn** — no other spell
+   actually gets cast. Instead, for every single nonland card in your whole
+   decklist (whether or not it happens to be the one sitting in this
+   particular hand this particular game), the tool checks whether that
+   turn's mana could have paid for it, and records the result. This check is
+   the actual measurement the entire tool is built around, and it's
+   deliberately independent of the land-drop and accelerant decisions above
+   — see ["What does this actually tell me?"](#what-does-this-actually-tell-me)
+   near the top of this page for why that separation matters.
+
+### What this playstyle is, and isn't
+
+This is a consistent, mana-focused heuristic, not a strategic AI making
+situational judgment calls. It doesn't hold back a removal spell for a
+bigger threat, it doesn't bluff or play around anything, it has no idea what
+your opponents are doing, and it will always play a land and deploy an
+accelerant if it possibly can, every single turn. That's a deliberate
+simplification, not an oversight: this tool exists to answer "does my mana
+base support my costs," not "what's the objectively best play in this exact
+moment." For that narrower, more useful question, always taking the
+straightforward, mana-efficient line is the right assumption to build the
+numbers on — a cleverer simulated player would introduce judgment calls that
+have nothing to do with your manabase, muddying exactly the signal this tool
+is trying to isolate.
+
 ## What This Tool Doesn't Do
 
 This is a mana-base and curve calculator, not a full game simulator. Things

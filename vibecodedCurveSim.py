@@ -96,7 +96,10 @@ rules-accurate MTG game engine. In particular:
 
  6. Land drops: exactly one land per turn, chosen (when there's a
     choice) to best satisfy the colors needed by the cheapest
-    not-yet-castable spell in hand.
+    not-yet-castable NONLAND card in hand -- mana rocks, mana dorks,
+    and ramp spells compete for this on equal footing with ordinary
+    action spells (Pass 15), not a separate priority tier: a card is
+    "cheapest" purely by cmc, whichever category it's in.
 
  7. The commander itself is assumed to be cast from the command zone
     and is excluded from the simulated library -- put it under an
@@ -713,6 +716,57 @@ one-off script run from outside this repository entirely):
     the external script) were regenerated using this native flag, so
     the shipped feature and the files in the repo now come from the
     same code path.
+
+Pass 15 (land-drop heuristic ignored mana rocks/dorks/ramp spells'
+OWN color needs -- a real behavior change, not comments/docs; found
+by asking specifically whether mana dorks shared the land-drop bug
+already identified for mana rocks):
+  - `_colors_needed_by_cheapest_uncastable` only ever searched
+    `is_action_spell` cards for the cheapest not-yet-castable color
+    need -- mana rocks, mana dorks, and ramp spells were excluded
+    entirely, so their own color requirements never influenced which
+    land got played, even though `deploy_accelerant` tries to cast the
+    cheapest affordable one of them EVERY turn regardless. A hand
+    holding, say, an uncastable 1-mana green dork and an off-color
+    action spell would chase only the spell's color -- the land drop
+    wasn't helping set up the very accelerant the engine was about to
+    try casting right after it.
+  - Two designs were considered: (a) unconditional strict priority for
+    accelerants over action spells regardless of relative cmc, or
+    (b) merge accelerants into the SAME cheapest-cmc search action
+    spells already used, letting cmc alone decide -- no separate
+    priority tier. Went with (b): a cheap dork/rock naturally wins when
+    it's genuinely the cheapest not-yet-castable thing in hand (common,
+    1-mana accelerants are common), without letting a pricier
+    accelerant preempt a cheaper action spell's real need.
+  - Fixed: candidate filter broadened from `c.is_action_spell` to
+    `not c.is_land` (every nonland card). Ties still union colors
+    across categories exactly as Pass 6 already did within action
+    spells -- the same reasoning applies unchanged regardless of what
+    category the tied cards belong to. Verified with three targeted
+    cases matching the agreed design exactly: a cmc-1 dork beats a
+    cmc-2 action spell's color; a cmc-1 action spell beats a cmc-3
+    dork's color (cmc still decides, not category); a cmc-1 dork and a
+    cmc-1 action spell of different colors union both colors. Also
+    verified end to end through the real `play_land_drop` sort, not
+    just the color-search helper in isolation.
+  - This is a genuine simulation-behavior change (unlike Pass 13/14's
+    comment/feature-only work) -- it can change which land gets played
+    on any turn where an uncastable accelerant and an uncastable
+    action spell of different colors are both in hand, for every
+    decklist that runs mana rocks, dorks, or ramp spells. All four
+    decklists processed by this tool run at least one such card, so
+    all four were rerun and their CSVs/statistics summaries
+    regenerated after this fix.
+  - Left deliberately unaddressed, flagged rather than silently
+    expanded into: `evaluate_hand_keepable` (the mulligan-keep trial)
+    has the identical `is_action_spell`-only restriction when deciding
+    what counts as a "spell cast" toward `MIN_SPELLS_TO_KEEP` -- a
+    separate function, a separate decision (whether to keep a hand at
+    all, not which land to play), and a broader behavioral question
+    (should deploying a mana rock count toward hand keepability the
+    same as casting a real spell?) that wasn't part of what was asked
+    or agreed here.
 
 --------------------------------------------------------------------
 DECKLIST FILE FORMAT
@@ -1693,28 +1747,48 @@ def resolve_fetch(fetch_card: Card, library: list, preferred_colors: frozenset) 
 
 def _colors_needed_by_cheapest_uncastable(hand: list, pool: list) -> frozenset:
     """
-    The color(s) required by the cheapest not-yet-castable action
-    spell(s) in `hand`. Drives both land-drop and fetch-target
-    selection (assumption 6: chase the colors the next thing you
-    actually want to cast needs, not color diversity in general).
+    The color(s) required by the cheapest not-yet-castable NONLAND
+    card(s) in `hand` -- mana rocks, mana dorks, and ramp spells
+    compete in this same search on equal footing with ordinary action
+    spells (Pass 15), not a separate priority tier: whichever nonland
+    card is cheapest by cmc wins, regardless of category. Drives both
+    land-drop and fetch-target selection (assumption 6: chase the
+    colors the next thing you actually want to cast needs, not color
+    diversity in general).
 
-    When multiple not-yet-castable spells TIE for cheapest, this
+    Before Pass 15, this only looked at `is_action_spell` cards,
+    meaning a mana rock's or dork's own color requirement never
+    factored into which land got played -- even though
+    `deploy_accelerant` tries to cast the cheapest affordable
+    accelerant every turn regardless. A hand holding an uncastable
+    1-mana dork and an off-color action spell would chase only the
+    spell's color, leaving the land drop unable to help set up the
+    accelerant `deploy_accelerant` was about to try casting anyway.
+    Fixed by broadening the candidate pool to every nonland card; a
+    cheap dork/rock naturally wins this search when it's genuinely the
+    cheapest not-yet-castable thing in hand (common, since 1-mana
+    accelerants are common), without letting a PRICIER accelerant
+    preempt a cheaper action spell's need -- cmc still decides, not
+    category.
+
+    When multiple not-yet-castable cards TIE for cheapest, this
     returns the UNION of all their colors, not just one arbitrarily
-    picked spell's. Only tracking a single spell's colors here was a
-    measured, real limitation: whichever spell happened to be first in
+    picked card's -- true regardless of which categories the tied
+    cards belong to. Only tracking a single card's colors here was a
+    measured, real limitation: whichever card happened to be first in
     hand-iteration order (an accident of draw order, not a deliberate
     priority) would win the land drop every time, silently starving
     same-cost siblings of a matching land even when one was in hand.
-    Concretely: for a one-off {W} card in a hand that also held any
-    other not-yet-castable cmc-1 spell, this cost it a matching white
-    land roughly 7% of the time it was drawn, in testing against a
-    real 3-color decklist -- a land that could have made both colors
+    Concretely: for a one-off {W} action spell in a hand that also held
+    any other not-yet-castable cmc-1 card, this cost it a matching
+    white land roughly 7% of the time it was drawn, in testing against
+    a real 3-color decklist -- a land that could have made both colors
     (e.g. an R/W dual matching a white AND a red 1-drop) was being
-    ignored in favor of whichever spell won the coin-flip. Aggregating
-    the tied tier lets `play_land_drop`'s scoring recognize a land
-    that helps ANY of them, including one that helps all of them.
+    ignored in favor of whichever card won the coin-flip (Pass 6).
+    Aggregating the tied tier lets `play_land_drop`'s scoring recognize
+    a land that helps ANY of them, including one that helps all of them.
     """
-    candidates = sorted((c for c in hand if c.is_action_spell), key=lambda c: c.cmc)
+    candidates = sorted((c for c in hand if not c.is_land), key=lambda c: c.cmc)
     needed = set()
     cheapest_cmc = None
     for card in candidates:
@@ -1740,7 +1814,8 @@ def play_land_drop(hand: list, library: list, battlefield: list) -> Optional[Car
     there's no land in hand to play.
 
     Selection heuristic (assumption 6), highest priority first:
-      1. hits a color the cheapest not-yet-castable spell in hand needs,
+      1. hits a color the cheapest not-yet-castable nonland card in
+         hand needs (mana rock/dork/ramp spell or action spell alike),
       2. enters untapped this turn (fetches score on fetch_forces_tapped
          instead, since their true tapped state depends on what they find),
       3. is a fetchland (free deck-thinning), as a last tiebreak.
