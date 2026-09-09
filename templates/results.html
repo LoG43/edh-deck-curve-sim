@@ -5,7 +5,15 @@
   <title>{{ decklist_name }} — Curve Simulation Results</title>
   <style>
     body { font-family: system-ui, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem;
-           color: #1a1a1a; background: #fafafa; }
+           color: #1a1a1a; background-color: #fafafa;
+           /* Random card art (see app.py's background_art_url) sits behind a heavy light
+              scrim so it reads as color in the margins without ever competing with text --
+              every bit of actual content already lives inside its own opaque white box
+              (.headline / .card-ish tables / etc.), so this is purely a backdrop. Falls
+              back to the plain page color via var()'s default when no art was picked. */
+           background-image: linear-gradient(rgba(250,250,250,0.70), rgba(250,250,250,0.70)), var(--bg-art, none);
+           background-size: cover; background-position: center top;
+           background-attachment: fixed; background-repeat: no-repeat; }
     h1 { font-size: 1.5rem; margin-bottom: 0.1rem; }
     h2 { font-size: 1.15rem; border-bottom: 2px solid #e2e2e2; padding-bottom: 0.3rem; margin-top: 2.5rem; }
     .meta { color: #555; font-size: 0.92rem; line-height: 1.6; }
@@ -22,7 +30,8 @@
     .headline-grid .value { font-size: 1.3rem; font-weight: 600; }
     .headline-grid .stddev { font-size: 0.78rem; color: #888; margin-top: 0.1rem; }
     .consistency-note { color: #555; font-size: 0.92rem; margin: 0 0 0.5rem 0; }
-    table { width: 100%; border-collapse: collapse; margin-top: 0.75rem; font-size: 0.9rem; }
+    table { width: 100%; border-collapse: collapse; margin-top: 0.75rem; font-size: 0.9rem;
+             background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 0 0 1px #eee; }
     th, td { text-align: left; padding: 0.35rem 0.6rem; border-bottom: 1px solid #eee; }
     th { background: #f0f0f0; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.02em; color: #555; }
     td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
@@ -46,7 +55,7 @@
                   overflow-x: auto; font-size: 0.8rem; }
   </style>
 </head>
-<body>
+<body{% if background_art_url %} style="--bg-art: url('{{ background_art_url }}');"{% endif %}>
   <h1>{{ decklist_name }}</h1>
   <div class="meta">
     {% if commander_names %}

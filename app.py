@@ -46,6 +46,7 @@ can never cross-contaminate each other's log output.
 """
 import io
 import json
+import random
 import tempfile
 import threading
 import uuid
@@ -168,6 +169,17 @@ def _run_job(job: _Job, decklist_text: str, decklist_name: str, num_simulations:
                 row.append(f"{per_turn[turn]:.4f}" if turn in per_turn else "")
             csv_rows.append(row)
 
+        # Pick one random nonland card's art for the results page's
+        # background -- purely cosmetic (see Card.art_crop_url), so a
+        # card missing art (rare, but possible for very old printings)
+        # just narrows the pool rather than breaking anything. Drawn
+        # from `results` specifically (the cards actually reported in
+        # the table), not the whole card_lookup, so the featured art is
+        # always something the viewer can see numbers for.
+        art_candidates = [card_lookup[name].art_crop_url for name in results
+                           if card_lookup[name].art_crop_url]
+        background_art_url = random.choice(art_candidates) if art_candidates else None
+
         job.result = {
             "decklist_name": decklist_name,
             "commander_names": commander_names,
@@ -175,6 +187,7 @@ def _run_job(job: _Job, decklist_text: str, decklist_name: str, num_simulations:
             "card_lookup": card_lookup,
             "results": results,
             "mana_consistency": mana_consistency,
+            "background_art_url": background_art_url,
             "missing": missing,
             "fetch_log": "\n".join(log_lines),
             "num_simulations": num_simulations,
@@ -264,6 +277,7 @@ def _build_view_model(run: dict) -> dict:
     return {
         "decklist_name": run["decklist_name"],
         "commander_names": run["commander_names"],
+        "background_art_url": run.get("background_art_url"),
         "missing": run["missing"],
         "fetch_log": run["fetch_log"],
         "num_simulations": run["num_simulations"],

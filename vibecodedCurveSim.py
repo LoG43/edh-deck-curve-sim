@@ -419,6 +419,13 @@ class Card:
     colors: frozenset             # colors printed on the card (for reference)
     color_identity: frozenset
 
+    # Cosmetic only -- never read by the simulation engine itself, just
+    # by the web app's background-art feature (app.py). Scryfall's
+    # "art crop" is the card's illustration with the frame/text box
+    # cropped out, from whichever face classify_card chose to model
+    # this card as (see the face-precedence comment in classify_card).
+    art_crop_url: str = ""
+
     is_land: bool = False
     is_mana_rock: bool = False    # nonland, noncreature artifact that taps for mana
     is_mana_dork: bool = False    # creature that taps for mana
@@ -754,6 +761,7 @@ def classify_card(raw: dict, deck_colors: frozenset) -> Card:
     cmc = raw.get("cmc", 0) or 0
     colors = raw.get("colors")
     produced_mana = raw.get("produced_mana")
+    art_crop_url = (raw.get("image_uris") or {}).get("art_crop", "")
 
     faces = raw.get("card_faces")
     if faces:
@@ -782,6 +790,14 @@ def classify_card(raw: dict, deck_colors: frozenset) -> Card:
         oracle_text = chosen.get("oracle_text", "") or oracle_text
         if chosen.get("colors") is not None:
             colors = chosen.get("colors")
+        # Multi-faced layouts usually have NO top-level image_uris at
+        # all (each face has its own separate illustration) -- fall
+        # back to the chosen face's own art only when the top-level
+        # lookup above came up empty, same "only override if we didn't
+        # already get something real" shape as the mana_cost fallback
+        # a few lines down.
+        if not art_crop_url:
+            art_crop_url = (chosen.get("image_uris") or {}).get("art_crop", "")
 
         if land_face is not None:
             # Lands have no mana cost or mana value -- force these
@@ -841,6 +857,7 @@ def classify_card(raw: dict, deck_colors: frozenset) -> Card:
         oracle_text=oracle_text,
         colors=frozenset(colors or []),
         color_identity=frozenset(raw.get("color_identity", []) or []),
+        art_crop_url=art_crop_url or "",
         is_land=is_land,
         is_mana_rock=is_mana_rock,
         is_mana_dork=is_mana_dork,
