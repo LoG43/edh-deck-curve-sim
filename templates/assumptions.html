@@ -275,6 +275,49 @@
     </dl>
   </div>
 
+  <div class="card">
+    <span class="num">13</span><h2>The headline number comes with a standard deviation, not just a mean</h2>
+    <dl>
+      <dt>Decision</dt>
+      <dd>Every headline reliability percentage (on-curve, cmc+1, cmc+2, cmc+3) is now shown with a
+        &plusmn; standard deviation computed across the same quantity-weighted population of cards as
+        the mean itself.</dd>
+      <dt class="why">Why</dt>
+      <dd>A mean alone can hide real problems: a handful of very-reliable colorless mana rocks can prop
+        up the average while most of your actual colored spells sit well below it. The mean and the
+        spread need to be read together to know whether that headline number honestly describes the
+        whole deck.</dd>
+      <dt class="impact">Impact</dt>
+      <dd>A small &plusmn; means your reliability is uniform across the deck — every card is about as
+        supported as every other. A large &plusmn; means the average is misleading — some cards are
+        gimmes and others are seriously undersupported, which is a much more actionable "your manabase
+        has holes somewhere" signal than the mean by itself.</dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <span class="num">14</span><h2>Mana screw and flood rates use fixed checkpoints, not per-deck ones</h2>
+    <dl>
+      <dt>Decision</dt>
+      <dd><strong>Screwed</strong> means 4 or fewer real lands are in play by turn 6 — i.e. at least two
+        of the first six land drops were missed. <strong>Flooded</strong> means 2 or more lands are
+        sitting unplayed in hand by turn 6. Both are tracked per simulated game (not per card) and
+        reported as the fraction of games that hit the threshold.</dd>
+      <dt class="why">Why</dt>
+      <dd>These checkpoints are fixed rather than scaled to your deck's own curve on purpose — a single,
+        transparent, unmoving definition makes screw/flood rates comparable across every deck you run
+        through this tool. Turn 6 with a 4-or-fewer threshold specifically targets a real, game-warping
+        outcome (missing 2+ of your first 6 drops) rather than the ordinary variance of missing exactly
+        one, which is normal even for a well-built 36+ land deck.</dd>
+      <dt class="impact">Impact</dt>
+      <dd>These two numbers answer a different question than the per-card curve table: not "is any one
+        card's cost supported," but "how often does an entire game go sideways on land count." A high
+        screw rate suggests too few lands (or too little early ramp); a high flood rate suggests too
+        many. If your deck usually goes long past turn 6, the fixed checkpoints may undersell how the
+        deck actually plays out — read them as a general health check, not a verdict.</dd>
+    </dl>
+  </div>
+
   <a class="back" href="/">&larr; Back to the simulator</a>
 </body>
 </html>

@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Running Simulation&hellip;</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 700px; margin: 3rem auto; padding: 0 1rem;
+           color: #1a1a1a; background: #fafafa; }
+    h1 { font-size: 1.5rem; margin-bottom: 0.1rem; }
+    p.subtitle { color: #555; margin-top: 0.25rem; }
+    .card { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 1.5rem;
+            margin-top: 1.5rem; }
+    .status-line { display: flex; align-items: center; gap: 0.6rem; font-size: 1.02rem; font-weight: 600; }
+    .spinner { width: 18px; height: 18px; border: 3px solid #dbe7f3; border-top-color: #2b6cb0;
+               border-radius: 50%; animation: spin 0.8s linear infinite; flex: none; }
+    .spinner.done { border-top-color: #38a169; animation: none; }
+    .spinner.error { border-top-color: #c0392b; animation: none; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .bar-track { background: #eee; border-radius: 5px; height: 14px; overflow: hidden; margin-top: 1rem; }
+    .bar-fill { background: #2b6cb0; height: 100%; width: 0%; transition: width 0.15s ease-out; }
+    .bar-caption { font-size: 0.85rem; color: #666; margin-top: 0.4rem; }
+    .log-box { margin-top: 1.25rem; background: #1a1a1a; color: #cfd8dc; font-family: ui-monospace,
+               SFMono-Regular, Consolas, monospace; font-size: 0.78rem; border-radius: 6px; padding: 0.75rem 1rem;
+               max-height: 260px; overflow-y: auto; white-space: pre-wrap; }
+    .log-box:empty::before { content: "(no fetch log yet)"; color: #6b7680; }
+    .error-box { background: #fde8e8; border: 1px solid #f5b5b5; color: #9b2c2c; padding: 0.9rem 1rem;
+                 border-radius: 6px; margin-top: 1.25rem; font-size: 0.92rem; }
+    a.back { display: inline-block; margin-top: 1.5rem; color: #2b6cb0; }
+  </style>
+</head>
+<body>
+  <h1>Running your simulation</h1>
+  <p class="subtitle">{{ decklist_name }}</p>
+
+  <div class="card">
+    <div class="status-line">
+      <div class="spinner" id="spinner"></div>
+      <span id="status-text">Starting&hellip;</span>
+    </div>
+
+    <div id="bar-wrap" style="display:none;">
+      <div class="bar-track"><div class="bar-fill" id="bar-fill"></div></div>
+      <div class="bar-caption" id="bar-caption"></div>
+    </div>
+
+    <div class="log-box" id="log-box"></div>
+
+    <div class="error-box" id="error-box" style="display:none;"></div>
+  </div>
+
+  <a class="back" id="back-link" href="/">&larr; Back to the upload form</a>
+
+  <script>
+    const jobId = {{ job_id|tojson }};
+    const statusText = document.getElementById("status-text");
+    const spinner = document.getElementById("spinner");
+    const barWrap = document.getElementById("bar-wrap");
+    const barFill = document.getElementById("bar-fill");
+    const barCaption = document.getElementById("bar-caption");
+    const logBox = document.getElementById("log-box");
+    const errorBox = document.getElementById("error-box");
+
+    const STATUS_LABELS = {
+      starting: "Starting…",
+      fetching: "Looking up cards on Scryfall…",
+      simulating: "Simulating games…",
+      reporting: "Building the report…",
+    };
+
+    function appendLog(line) {
+      const atBottom = logBox.scrollHeight - logBox.scrollTop - logBox.clientHeight < 8;
+      logBox.textContent += (logBox.textContent ? "\n" : "") + line;
+      if (atBottom) logBox.scrollTop = logBox.scrollHeight;
+    }
+
+    const source = new EventSource(`/progress/${jobId}`);
+
+    source.onmessage = (evt) => {
+      const data = JSON.parse(evt.data);
+
+      if (data.kind === "status") {
+        statusText.textContent = data.message || STATUS_LABELS[data.status] || data.status;
+        if (data.status !== "simulating") {
+          barWrap.style.display = "none";
+        }
+      } else if (data.kind === "log") {
+        appendLog(data.line);
+      } else if (data.kind === "progress") {
+        barWrap.style.display = "block";
+        const pct = data.total ? (data.done / data.total) * 100 : 0;
+        barFill.style.width = pct.toFixed(1) + "%";
+        barCaption.textContent = `${data.done.toLocaleString()} / ${data.total.toLocaleString()} games simulated`;
+      } else if (data.kind === "done") {
+        spinner.classList.add("done");
+        statusText.textContent = "Done — loading results…";
+        source.close();
+        window.location = data.redirect;
+      } else if (data.kind === "error") {
+        spinner.classList.add("error");
+        statusText.textContent = "Something went wrong";
+        errorBox.style.display = "block";
+        errorBox.textContent = data.message;
+        source.close();
+      }
+    };
+
+    source.onerror = () => {
+      // The connection can legitimately close once we navigate away
+      // after "done"/"error"; only surface this as a problem if we're
+      // still waiting on a normal-looking status.
+      if (barFill.style.width !== "100.0%" && errorBox.style.display === "none"
+          && !statusText.textContent.startsWith("Done")) {
+        spinner.classList.add("error");
+        statusText.textContent = "Lost connection to the server";
+        errorBox.style.display = "block";
+        errorBox.textContent = "The live progress connection dropped. If the terminal running " +
+          "app.py is still open, try refreshing this page; otherwise go back and start over.";
+      }
+    };
+  </script>
+</body>
+</html>

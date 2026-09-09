@@ -20,6 +20,8 @@
     .headline-grid div { min-width: 90px; }
     .headline-grid .label { font-size: 0.78rem; color: #777; text-transform: uppercase; letter-spacing: 0.03em; }
     .headline-grid .value { font-size: 1.3rem; font-weight: 600; }
+    .headline-grid .stddev { font-size: 0.78rem; color: #888; margin-top: 0.1rem; }
+    .consistency-note { color: #555; font-size: 0.92rem; margin: 0 0 0.5rem 0; }
     table { width: 100%; border-collapse: collapse; margin-top: 0.75rem; font-size: 0.9rem; }
     th, td { text-align: left; padding: 0.35rem 0.6rem; border-bottom: 1px solid #eee; }
     th { background: #f0f0f0; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.02em; color: #555; }
@@ -66,19 +68,38 @@
   <div class="headline">
     <h2>Overall Deck Reliability</h2>
     <p style="margin:0 0 0.5rem 0; color:#444;">On a randomly picked nonland card (quantity-weighted
-      across all {{ nonland_count }} of them), the average chance its cost was payable:</p>
+      across all {{ nonland_count }} of them), the average chance its cost was payable. The
+      &plusmn; figure is the standard deviation across cards — how much that average actually
+      represents the whole deck, versus being pulled around by a mix of very safe and very
+      shaky cards:</p>
     <div class="headline-grid">
       <div><div class="label">On curve</div>
-        <div class="value">{{ "%.1f%%"|format(deck_avg[0] * 100) if deck_avg[0] is not none else "—" }}</div></div>
+        <div class="value">{{ "%.1f%%"|format(deck_avg[0] * 100) if deck_avg[0] is not none else "—" }}</div>
+        <div class="stddev">&plusmn; {{ "%.1f%%"|format(deck_stddev[0] * 100) if deck_stddev[0] is not none else "—" }}</div></div>
       <div><div class="label">By cmc+1</div>
-        <div class="value">{{ "%.1f%%"|format(deck_avg[1] * 100) if deck_avg[1] is not none else "—" }}</div></div>
+        <div class="value">{{ "%.1f%%"|format(deck_avg[1] * 100) if deck_avg[1] is not none else "—" }}</div>
+        <div class="stddev">&plusmn; {{ "%.1f%%"|format(deck_stddev[1] * 100) if deck_stddev[1] is not none else "—" }}</div></div>
       <div><div class="label">By cmc+2</div>
-        <div class="value">{{ "%.1f%%"|format(deck_avg[2] * 100) if deck_avg[2] is not none else "—" }}</div></div>
+        <div class="value">{{ "%.1f%%"|format(deck_avg[2] * 100) if deck_avg[2] is not none else "—" }}</div>
+        <div class="stddev">&plusmn; {{ "%.1f%%"|format(deck_stddev[2] * 100) if deck_stddev[2] is not none else "—" }}</div></div>
       <div><div class="label">By cmc+3</div>
-        <div class="value">{{ "%.1f%%"|format(deck_avg[3] * 100) if deck_avg[3] is not none else "—" }}</div></div>
+        <div class="value">{{ "%.1f%%"|format(deck_avg[3] * 100) if deck_avg[3] is not none else "—" }}</div>
+        <div class="stddev">&plusmn; {{ "%.1f%%"|format(deck_stddev[3] * 100) if deck_stddev[3] is not none else "—" }}</div></div>
     </div>
     <p class="sub">This is the single best number for comparing two different decks, or two versions
       of the same manabase, at a glance.</p>
+
+    <h2 style="margin-top:1.5rem;">Mana Consistency</h2>
+    <p class="consistency-note">Deck-wide outcomes, not tied to any one card — how often a whole
+      game goes sideways on land count.</p>
+    <div class="headline-grid">
+      <div><div class="label">Screw rate</div>
+        <div class="value">{{ "%.1f%%"|format(mana_consistency.screw_prob * 100) if mana_consistency.screw_prob is not none else "n/a" }}</div>
+        <div class="stddev">{{ screw_land_threshold }} or fewer lands in play by turn {{ screw_check_turn }}</div></div>
+      <div><div class="label">Flood rate</div>
+        <div class="value">{{ "%.1f%%"|format(mana_consistency.flood_prob * 100) if mana_consistency.flood_prob is not none else "n/a" }}</div>
+        <div class="stddev">{{ flood_excess_threshold }}+ lands stuck unplayed in hand by turn {{ flood_check_turn }}</div></div>
+    </div>
   </div>
 
   <div class="downloads">

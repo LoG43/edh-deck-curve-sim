@@ -230,12 +230,18 @@ You'll see a form: choose your decklist `.txt` file, optionally adjust the
 number of simulations or turns, check the box for a detailed Scryfall
 fetch log if you want one, and click **Run Simulation**.
 
-The first run for a new decklist will take a little while — it's fetching
-every card from Scryfall over the internet, one at a time, on purpose, to be
-polite to Scryfall's servers. Give it a minute or two on a ~100-card deck.
-Every card it looks up gets saved to a local file (`scryfall_cache.json`),
-so running the *same* deck again — or a different deck that shares a lot of
-cards with one you've already run — is much faster.
+Clicking that button takes you to a live progress page instead of a blank
+tab — it shows which step is running (fetching cards, then simulating
+games) and a games-simulated counter that fills in as the run progresses,
+so you always know it's actually working rather than stuck. The first run
+for a new decklist will take a little while — it's fetching every card from
+Scryfall over the internet, one at a time, on purpose, to be polite to
+Scryfall's servers — give it a minute or two on a ~100-card deck, and check
+the fetch-log box if you want to watch it happen card by card. Every card it
+looks up gets saved to a local file (`scryfall_cache.json`), so running the
+*same* deck again — or a different deck that shares a lot of cards with one
+you've already run — is much faster. Once the run finishes, the page moves
+you to the results automatically.
 
 To stop the server when you're done, go back to the terminal window it's
 running in and press `Ctrl+C`.
@@ -253,7 +259,22 @@ The results page opens with a headline **Overall Deck Reliability** number —
 if you reached into your deck and pulled one nonland card out at random,
 what's the average chance its cost was payable on curve? This is the single
 most useful number for comparing two different decks, or two versions of the
-same manabase before/after a change.
+same manabase before/after a change. Right beside it is a **±** figure — the
+standard deviation across all your nonland cards. A small ± means every card
+is about equally well-supported; a large ± means that average is misleading,
+propped up by a handful of very safe cards while others are shakier than the
+headline number suggests.
+
+Just below the headline, a separate **Mana Consistency** box reports two
+deck-wide, game-level rates that the per-card numbers can't show on their
+own:
+
+- **Screw rate** — how often a whole game has 4 or fewer lands in play by
+  turn 6 (missed at least two of your first six land drops). High screw
+  rates point to too few lands or too little early ramp.
+- **Flood rate** — how often a whole game has 2 or more lands sitting
+  unplayed in hand by turn 6. High flood rates point to too many lands
+  relative to what you actually need to cast.
 
 Below that:
 
@@ -313,12 +334,20 @@ normal and handled automatically, especially on a very large decklist or if
 you're running several decks back-to-back. Just let it wait; it'll continue
 on its own.
 
-**It looks stuck / nothing is happening** — on the *first* run of a new
-decklist, it's fetching every card from the internet one at a time (on
-purpose, to be polite to Scryfall's servers). For a 100-card deck this can
-take up to a minute or two. Check the box for the detailed fetch log on the
-upload form (or add `--verbose` on the command line) to see it working card
-by card if you want visible progress.
+**It looks stuck / nothing is happening** — the web app's progress page
+always shows a live status and, once simulation starts, a games-simulated
+counter, so if that page is genuinely frozen (not just slow), try refreshing
+it. On the *first* run of a new decklist, fetching every card from the
+internet one at a time (on purpose, to be polite to Scryfall's servers) can
+take up to a minute or two for a 100-card deck — that's normal, not stuck.
+Check the box for the detailed fetch log on the upload form (or add
+`--verbose` on the command line) to watch it working card by card.
+
+**The progress page says "Lost connection to the server"** — the live
+progress stream dropped, most often because the terminal running
+`python app.py` was closed or the computer went to sleep mid-run. If the
+terminal is still open, refreshing the progress page reconnects; if not,
+restart `python app.py` and start the run again.
 
 **My commander still shows up as a row in the results** — after adding the
 `Commander` heading correctly (Step 5), your commander should disappear from
@@ -478,7 +507,7 @@ Add these after the decklist filename, e.g.
 | Flag | What it does |
 |---|---|
 | `--csv results.csv` | Also save the raw results to a spreadsheet-friendly CSV file, so you can open it in Excel, Google Sheets, or Numbers. |
-| `--summary report.txt` | Also save a deckbuilder-facing statistics summary — mana base breakdown, curve shape, a color reliability index, an overall reliability heuristic for comparing decks at a glance, and a plain-language takeaways section. This is the same content the web app's results page shows, as a plain-text file. |
+| `--summary report.txt` | Also save a deckbuilder-facing statistics summary — mana base breakdown, curve shape, a color reliability index, an overall reliability heuristic (with standard deviation and mana screw/flood rates) for comparing decks at a glance, and a plain-language takeaways section. This is the same content the web app's results page shows, as a plain-text file. |
 | `--simulations 20000` | Run more simulated games (default 10,000) for a more precise answer, at the cost of taking longer to run. |
 | `--max-turns 12` | Simulate further into the game (default 10 turns) — useful if your deck has a lot of very expensive cards. |
 | `--verbose` | Print a line for every single card as it's looked up on Scryfall, so you can watch progress on a big decklist. |
