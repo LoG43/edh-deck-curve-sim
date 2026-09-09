@@ -674,3 +674,82 @@ codebase cleanup, not as bug fixes or new functionality:
     further would mean passing the same handful of objects between
     several files for no real readability gain, not a genuine
     separation of concerns like the Scryfall layer was.
+
+## Pass 17 (a genuine OPTIMISM bug in costed mana rocks, a mulligan-test gap, docs, and a debug-mode fix -- found by an outside code review, not from a suspicious result)
+
+Four independent fixes from the same review pass:
+
+  - COSTED MANA ROCKS/DORKS WERE FREE: `_tap_ability_mana_count` only
+    ever read the mana symbols after "Add" in a "{T}: Add ..." ability
+    -- it never accounted for an EXTRA cost bundled into that same
+    activation alongside the tap symbol. A guild Signet's "{1}, {T}:
+    Add {U}{B}." was therefore credited with its full 2-mana output
+    for free, every turn, forever -- the {1} it actually costs to
+    activate was never subtracted anywhere. This is the same shape of
+    bug as Pass 12's Pitiless Plunderer fix (an OPTIMISM bug, the
+    opposite direction from this tool's usual "err pessimistic"
+    approximations) but a different mechanism -- Pass 12's audit
+    scanned for conditional/variable-amount language and never
+    considered a FIXED extra cost, so it didn't catch this. Fixed:
+    `_tap_ability_mana_count` (now backed by the new module-level
+    `TAP_ABILITY_RE`) parses both the activation cost and the "Add"
+    output, and returns `max(added - paid, 0)` -- a Signet nets +1
+    mana (2 produced, 1 spent) instead of a phantom +2. Cost-free
+    abilities (Sol Ring, Arcane Signet, Mind Stone, Fellwar Stone,
+    Coalition Relic's free half) are unaffected, verified directly
+    against all of their real oracle text. `Card.mana_per_tap`'s field
+    comment and module docstring assumption 1 were both updated to
+    describe net mana, not gross mana.
+  - MULLIGAN KEEPABILITY IGNORED DEPLOYED ACCELERANTS: flagged as a
+    known, deliberately deferred gap at the end of Pass 15 ("a
+    separate function, a separate decision... that wasn't part of what
+    was asked or agreed here") and left standing until now.
+    `evaluate_hand_keepable`'s trial loop calls `deploy_accelerant`
+    once per simulated turn, but discarded which card (if any) it
+    actually played (`_, pool = deploy_accelerant(...)`) -- that
+    played accelerant never counted toward `MIN_SPELLS_TO_KEEP`, even
+    though the identical action-spell loop right below it did count.
+    A hand that could easily deploy two castable mana rocks over four
+    turns, but held zero action spells, was judged unkeepable purely
+    because of this counting gap. First attempt at the fix (broadening
+    the action-spell loop's own filter from `is_action_spell` to
+    `not c.is_land`) was WRONG and caught by a synthetic regression
+    test before landing: it would have let the trial deploy a SECOND
+    accelerant in the same turn on top of the one `deploy_accelerant`
+    already plays, breaking the "one accelerant per turn" rule this
+    engine enforces everywhere else (assumption 4; `run_single_game`'s
+    real turn loop has no equivalent second pass at all). Fixed
+    correctly instead: capture `deploy_accelerant`'s return value and
+    increment `spells_cast` when it played something, leaving the
+    action-spell loop's own scope untouched. Verified with a synthetic
+    hand of two accelerants and zero action spells (now keepable,
+    previously wasn't) and a synthetic hand of exactly one accelerant
+    (correctly still not keepable on its own).
+  - DOCS: added assumption 15 to the module docstring and a matching
+    card 15 on `assumptions.html`, both documenting that creature- and
+    artifact-based land ramp (Solemn Simulacrum, Wayfarer's Bauble,
+    Burnished Hart, Sword of the Animist, and similar cards) is not
+    recognized as ramp at all -- `is_ramp_spell` requires `not
+    is_artifact and not is_creature`, so these cards are checked only
+    for their own casting cost, and the land they'd put into play
+    contributes nothing to the simulated mana base. This was previously
+    true (Pass 11 first noted the creature-exclusion half of it) but
+    was never promoted out of buried changelog history into either of
+    the two places a deckbuilder would actually look for it. No code
+    behavior changed here -- documentation accuracy only, same as Pass
+    13.
+  - APP.PY NO LONGER RUNS WITH `debug=True`: Flask's debug mode ships
+    the Werkzeug interactive debugger, which lets anyone who can reach
+    an unhandled-exception page execute arbitrary Python in the
+    browser. The app binds to localhost by default, which limits real-
+    world exposure, but the README has brand-new users run `python
+    app.py` directly as their normal way of using the tool, so
+    shipping debug mode as the default -- a mode that exists for
+    active development of app.py itself, not end use -- was
+    unnecessary exposure. Changed to `debug=False`; `threaded=True` is
+    unchanged and still required (see the comment above it).
+  - Verified via `py_compile` on all three files, targeted synthetic
+    (non-network) tests for the two behavior changes above (shown
+    inline in this entry), and a full `run_simulation` smoke test on a
+    synthetic decklist including both a Signet-style costed rock and
+    Sol Ring side by side -- no crashes, plausible numbers for both.

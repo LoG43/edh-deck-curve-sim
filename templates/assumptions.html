@@ -43,13 +43,19 @@
     <dl>
       <dt>Decision</dt>
       <dd>A mana rock (a nonland, noncreature artifact that taps for mana, like Sol Ring or Arcane
-        Signet) is treated as usable for mana the same turn it's cast.</dd>
+        Signet) is treated as usable for mana the same turn it's cast. If its tap ability bundles an
+        <em>extra</em> cost alongside the tap (a guild Signet's "{1}, {T}: Add {U}{B}.", for example),
+        it's credited with its <strong>net</strong> mana — what it adds minus what it costs to
+        activate — not its full output for free.</dd>
       <dt class="why">Why</dt>
       <dd>This matches the actual Magic rules — summoning sickness only restricts creatures, not
-        artifacts, so a freshly-cast rock can tap for mana immediately in real games.</dd>
+        artifacts, so a freshly-cast rock can tap for mana immediately in real games. A Signet-style
+        rock genuinely only nets +1 mana (two colored mana produced, one generic spent) each time it's
+        tapped; crediting it with the full two would be treating a real cost as if it didn't exist.</dd>
       <dt class="impact">Impact</dt>
       <dd>Decks leaning on artifact ramp will show stronger, faster mana availability than decks of the
-        same land count without rocks. This is accurate, not an inflated number.</dd>
+        same land count without rocks. This is accurate, not an inflated number — including for costed
+        rocks like Signets, whose net contribution is now correctly smaller than a free rock's.</dd>
     </dl>
   </div>
 
@@ -315,6 +321,29 @@
         screw rate suggests too few lands (or too little early ramp); a high flood rate suggests too
         many. If your deck usually goes long past turn 6, the fixed checkpoints may undersell how the
         deck actually plays out — read them as a general health check, not a verdict.</dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <span class="num">15</span><h2>Creature- and artifact-based land ramp isn't modeled as ramp at all</h2>
+    <dl>
+      <dt>Decision</dt>
+      <dd>Only sorceries and instants that search your library for a land and put it onto the
+        battlefield are treated as ramp (see item 3 above). Cards that do the same thing from a
+        <strong>creature</strong> or <strong>artifact</strong> — Solemn Simulacrum, Wayfarer's Bauble,
+        Burnished Hart, Sword of the Animist, and similar cards — are <em>not</em> recognized as ramp.
+        They're checked like any other nonland card for whether their own cost was payable, but the land
+        they would have put into play contributes nothing to the simulated mana base.</dd>
+      <dt class="why">Why</dt>
+      <dd>This tool's ramp detection only ever looked for the sorcery/instant "search and put onto the
+        battlefield" pattern — it was never extended to recognize the same effect worded as a creature's
+        enter-the-battlefield trigger or an artifact's activated/sacrifice ability. This is a real,
+        deliberate gap in what's been built, not a subtle edge case.</dd>
+      <dt class="impact">Impact</dt>
+      <dd>This is not merely conservative the way most of this tool's approximations are — the card's
+        entire ramp effect is invisible to the simulation, not just discounted. If your deck leans on
+        this style of ramp, expect a systematically thinner, slower-developing mana base in these
+        numbers than you'll actually see in real games. There's no toggle for this.</dd>
     </dl>
   </div>
 

@@ -437,4 +437,13 @@ if __name__ == "__main__":
     # -- without threaded=True, Flask's single worker would be stuck
     # serving that one open connection and unable to handle anything
     # else (even the initial page load) until the job finished.
-    app.run(debug=True, threaded=True)
+    #
+    # debug=False deliberately: Flask's debug mode ships the Werkzeug
+    # interactive debugger, which lets anyone who can reach an
+    # unhandled-exception page execute arbitrary Python in the browser.
+    # This app binds to localhost by default, but the README has
+    # brand-new users run this file directly as their normal way of
+    # using the tool -- it shouldn't default to a mode that exists for
+    # active development, not end use. Set it to True locally if you're
+    # working on app.py itself and want the auto-reloader/debugger back.
+    app.run(debug=False, threaded=True)

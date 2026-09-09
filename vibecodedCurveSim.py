@@ -61,7 +61,15 @@ rules-accurate MTG game engine. In particular:
  1. MANA ROCKS (nonland, noncreature artifacts with a tap-for-mana
     ability) are usable the SAME turn they are cast. This matches the
     actual rules: summoning sickness (rule 302.6) only restricts
-    CREATURES, not artifacts.
+    CREATURES, not artifacts. If the tap ability bundles an ADDITIONAL
+    COST alongside the tap symbol (e.g. a guild Signet's "{1}, {T}:
+    Add {U}{B}."), the rock/dork is credited with its NET mana --
+    mana added minus the extra cost paid, so a Signet nets +1 mana
+    (two colored mana produced, one generic spent), not a phantom +2
+    for free (see `_tap_ability_mana_count`, Pass 17). Abilities with
+    no extra cost (Sol Ring, Arcane Signet, Mind Stone, ...) are
+    unaffected -- this only changes anything for the subset of rocks/
+    dorks whose ability text pays for itself out of your other mana.
 
  2. MANA DORKS (creatures with a tap-for-mana ability) are usable
     starting the turn AFTER they are cast, unless their oracle text
@@ -194,6 +202,28 @@ rules-accurate MTG game engine. In particular:
     threshold. If `--max-turns`/`max_turns` is shorter than the
     relevant checkpoint turn, that rate is reported as unmeasured
     (None) rather than a misleading 0%.
+
+15. CREATURE- AND ARTIFACT-BASED LAND RAMP IS NOT MODELED AS RAMP AT
+    ALL -- this is a real, deliberate scope gap, not an oversight,
+    and it is significant enough to call out on its own rather than
+    leave buried in CHANGELOG history (Pass 11). `is_ramp_spell`
+    (see `classify_card`) requires `not is_artifact and not
+    is_creature`: only sorceries/instants that search for a land and
+    put it onto the battlefield are ever classified as ramp (assumption
+    3 above). Common EDH ramp pieces that fetch a land from a CREATURE
+    or ARTIFACT source -- Solemn Simulacrum, Wayfarer's Bauble,
+    Burnished Hart, Sword of the Animist, and similar cards -- are
+    therefore classified as plain `is_action_spell` cards instead:
+    only their OWN casting cost is checked for mana availability, and
+    the land they would have put into play contributes NOTHING to the
+    simulated mana base. This is not merely conservative the way most
+    of this tool's approximations are -- the card's entire ramp effect
+    is invisible to the simulation, not just discounted. A decklist
+    that leans on this style of ramp will show a systematically
+    thinner, slower-developing mana base than it would in a real game.
+    There is no toggle for this; fixing it would mean recognizing land-
+    search-and-battlefield triggers on creatures/artifacts as a new
+    accelerant category, which hasn't been built.
 
 None of these assumptions are exotic -- they mirror how experienced
 deckbuilders reason about curves by hand -- but they are worth
@@ -336,6 +366,18 @@ TAP_FOR_MANA_RE = re.compile(r"\{T\}[^.]*:\s*Add\b", re.IGNORECASE)
 # ever removes false positives, never a true one.
 PAREN_RE = re.compile(r"\([^)]*\)")
 
+# Captures a full "{T}: Add ..." tap ability in two pieces: group(1) is
+# everything in the activation cost (bounded by '.'/':' so it never
+# crosses into a different ability or sentence), group(2) is the mana
+# symbols after "Add". Used by _tap_ability_mana_count to net out any
+# EXTRA cost bundled alongside the tap (e.g. a guild Signet's "{1}, {T}:
+# Add {U}{B}." pays {1} to net {U}{B}) rather than crediting the full
+# "Add" output as if the ability were free -- see Pass 17.
+TAP_ABILITY_RE = re.compile(
+    r"([^.:]*\{T\}[^.:]*):\s*Add\s+((?:\{[^}]+\})+)",
+    re.IGNORECASE,
+)
+
 # Regex used to spot land-SEARCH clauses, e.g. "search your library for
 # a basic land card". Matches on the search alone -- NOT sufficient by
 # itself to conclude the card is a ramp spell, since "search your
@@ -432,7 +474,9 @@ class Card:
     is_ramp_spell: bool = False   # sorcery/instant that fetches land(s)
 
     # How many individual mana "instances" a single tap of this
-    # permanent produces (Sol Ring = 2, a basic land = 1, etc.)
+    # permanent NETS (Sol Ring = 2, a basic land = 1, a guild Signet
+    # like Boros Signet = 1 net -- 2 produced minus the {1} its own
+    # ability costs to activate; see _tap_ability_mana_count, Pass 17).
     mana_per_tap: int = 1
 
     # What colors of mana this source can produce. For colorless-only
@@ -584,23 +628,48 @@ def _extract_mana_symbols(cost_str: str) -> list:
 
 def _tap_ability_mana_count(oracle_text: str) -> int:
     """
-    Estimate how many mana instances a single tap-for-mana ability
-    produces by looking at the symbols right after "Add" in the
-    sentence containing "{T}: Add". Defaults to 1 if we can't parse it
-    (true for the vast majority of mana rocks/dorks/lands, which
-    produce exactly one mana per tap).
+    Estimate how many mana instances a single activation of a tap-for-
+    mana ability nets, by looking at the symbols right after "Add" in
+    the "{T}: Add" ability, MINUS any additional cost bundled into that
+    same activation alongside the tap symbol (e.g. a guild Signet's
+    "{1}, {T}: Add {U}{B}." pays {1} to net {U}{B} -- 2 mana produced,
+    1 spent, net +1).
+
+    Before Pass 17 this only looked at the "Add" side, so a Signet-
+    style rock was credited with its full 2-mana output for free every
+    turn, as if the ability had no cost at all -- overstating available
+    mana for any deck running this common EDH staple (Sol Ring, Arcane
+    Signet, Mind Stone, and other cost-free rocks were unaffected,
+    since their abilities have nothing else to subtract). This is the
+    one place in the file that previously erred OPTIMISTIC rather than
+    pessimistic (see CHANGELOG Pass 12's "err pessimistic" audit, which
+    predates this fix and didn't cover fixed extra costs).
+
+    Defaults to 1 if we can't parse a "{T}: Add" ability at all (true
+    for the vast majority of mana rocks/dorks/lands, which produce
+    exactly one mana per tap for no additional cost). Floors the net at
+    0 rather than 1 for a card whose activation cost genuinely exceeds
+    its own output -- no real mana rock/dork does this, but a floor of
+    0 is more honest than a phantom minimum of 1 mana for one that did.
     """
-    match = re.search(r"\{T\}[^.]*?Add\s+((?:\{[^}]+\})+)", oracle_text or "", re.IGNORECASE)
+    match = TAP_ABILITY_RE.search(oracle_text or "")
     if not match:
         return 1
-    symbols = _extract_mana_symbols(match.group(1))
+    cost_text, added_text = match.group(1), match.group(2)
+
     # Symbols like "{C}{C}" -> 2 instances. A symbol that's a number
     # (rare here, but defensive) would mean "add N mana of any type" --
     # treat that as N instances too.
-    total = 0
-    for sym in symbols:
-        total += int(sym) if sym.isdigit() else 1
-    return max(total, 1)
+    added = sum(int(sym) if sym.isdigit() else 1 for sym in _extract_mana_symbols(added_text))
+
+    # Everything in the activation cost EXCEPT the tap symbol itself
+    # counts against that net -- generic numbers at face value, any
+    # other symbol (a colored pip, {C}, etc.) as 1, same convention as
+    # the "added" side above.
+    paid = sum(int(sym) if sym.isdigit() else 1
+               for sym in _extract_mana_symbols(cost_text) if sym != "T")
+
+    return max(added - paid, 0)
 
 
 def _lands_fetched_count(oracle_text: str) -> int:
@@ -1311,12 +1380,33 @@ def record_mana_availability(card_lookup: dict, parsed_costs: dict, pool: list,
 def evaluate_hand_keepable(hand: list, library_remainder: list) -> bool:
     """
     London mulligan keep/ship decision: using ONLY the cards in `hand`
-    (no further draws), can the player cast at least
-    MIN_SPELLS_TO_KEEP distinct nonland spells within
-    MULLIGAN_LOOKAHEAD_TURNS turns? Spells are actually deployed
-    (mana spent, card removed from the trial hand) as they become
-    affordable, turn by turn in ascending-cmc order, so two spells
-    can't both "count" off mana that could only pay for one of them.
+    (no further draws), can the player cast/deploy at least
+    MIN_SPELLS_TO_KEEP distinct nonland cards within
+    MULLIGAN_LOOKAHEAD_TURNS turns -- a deployed mana rock, mana dork,
+    or ramp spell counts toward this exactly the same as a cast action
+    spell (Pass 17; see below). Spells/accelerants are actually
+    deployed (mana spent, card removed from the trial hand) as they
+    become affordable, so two of them can't both "count" off mana that
+    could only pay for one.
+
+    Before Pass 17, deploying the turn's one accelerant (via
+    `deploy_accelerant`, see the next paragraph) never counted toward
+    `spells_cast` at all -- its return value was silently discarded --
+    while `play_land_drop`'s own color-need search WAS already
+    broadened to treat every nonland card equally back in Pass 15. A
+    hand that could easily deploy two castable mana rocks over four
+    turns (but held zero action spells) was judged unkeepable purely
+    because of this gap, not because the hand was actually bad.
+
+    Each simulated turn deploys AT MOST one accelerant (mirroring
+    `run_single_game`'s own turn loop and assumption 4 -- a player
+    plays one land and one accelerant per turn), so this only adds one
+    counting fix, not a second "cast more accelerants" pass: the
+    action-spell loop below is deliberately UNCHANGED (still scoped to
+    `is_action_spell`) so a hand can't have both an accelerant AND an
+    extra rock/dork counted in the same turn, which would let the
+    trial deploy two accelerants in one turn when the real engine never
+    allows more than one.
 
     Operates on COPIES of hand/library (`trial_hand`/`trial_library`)
     so nothing here persists into the real game -- but fetch/ramp
@@ -1331,7 +1421,9 @@ def evaluate_hand_keepable(hand: list, library_remainder: list) -> bool:
 
     for _turn in range(1, MULLIGAN_LOOKAHEAD_TURNS + 1):
         play_land_drop(trial_hand, trial_library, trial_battlefield)
-        _, pool = deploy_accelerant(trial_hand, trial_battlefield)
+        accelerant, pool = deploy_accelerant(trial_hand, trial_battlefield)
+        if accelerant is not None:
+            spells_cast += 1
 
         for card in sorted((c for c in trial_hand if c.is_action_spell), key=lambda c: c.cmc):
             new_pool = try_pay_cost(parse_mana_cost(card.mana_cost), pool)
