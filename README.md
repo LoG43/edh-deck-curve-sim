@@ -15,6 +15,33 @@ This page assumes you've never used Python, a terminal, or GitHub before.
 Every step is spelled out. If you're already comfortable with all of that,
 skip to [Quick Start](#quick-start).
 
+## Screenshots
+
+<table>
+<tr>
+<td width="50%">
+
+**Upload a decklist**
+![Upload form](screenshots/upload-form.png)
+
+</td>
+<td width="50%">
+
+**Live progress while it runs**
+![Live progress page](screenshots/live-progress.png)
+
+</td>
+</tr>
+<tr>
+<td colspan="2">
+
+**Full results — reliability headline, mana consistency, and per-card curve table**
+![Results page](screenshots/results-page.png)
+
+</td>
+</tr>
+</table>
+
 ## What does this actually tell me?
 
 For every nonland card in your deck (creatures, spells, mana rocks — all of
