@@ -1,0 +1,20 @@
+# Local Scryfall lookup cache -- regenerates automatically on first run,
+# not code, and can grow large. Never needs to be committed.
+scryfall_cache.json
+
+# Python bytecode cache
+__pycache__/
+*.pyc
+
+# Editor/IDE settings
+.vscode/
+.idea/
+
+# OS cruft
+.DS_Store
+Thumbs.db
+
+# Personal decklists and manual test artifacts -- not part of the
+# shipped tool, kept local-only by choice.
+personal decklists/
+report.txt
